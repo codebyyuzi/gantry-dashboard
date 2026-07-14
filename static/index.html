@@ -7,7 +7,7 @@
     <style>
         * { box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
-        h1 { margin: 0 0 20px 0; color: #1a1a1a; }
+        h1 { margin: 0 0 8px 0; color: #1a1a1a; }
         .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
         .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .card .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -26,96 +26,156 @@
         .file-row:last-child { border-bottom: none; }
         .file-row a { color: #2563eb; text-decoration: none; font-size: 13px; }
         .file-row a:hover { text-decoration: underline; }
-        select { padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; margin-bottom: 12px; }
-        .timestamp { font-size: 11px; color: #999; margin-bottom: 16px; }
-        .error-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 16px; color: #991b1b; }
+        select { padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; }
         .btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; }
         .btn-primary { background: #2563eb; color: white; }
         .btn-primary:hover { background: #1d4ed8; }
         .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
-        .request-msg { font-size: 12px; color: #666; margin-left: 12px; display: inline-block; }
+        .request-msg { font-size: 12px; color: #666; }
+        .timestamp { font-size: 11px; color: #999; margin-bottom: 16px; }
+        .error-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 16px; color: #991b1b; }
+        .overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .overview-card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; }
+        .overview-card:hover { border-color: #2563eb; }
+        .overview-card.active { border-color: #2563eb; }
+        .overview-card .name { font-weight: 600; font-size: 16px; }
+        .overview-card .status { font-size: 13px; margin-top: 4px; }
+        .overview-card .detail { font-size: 12px; color: #666; margin-top: 4px; }
         @media (max-width: 768px) { .plots { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <h1>H2W Gantry Dashboard</h1>
 
-    <div class="cards">
-        <div class="card"><div class="label">Status</div><div class="value" id="state">—</div></div>
-        <div class="card"><div class="label">Current Cycle</div><div class="value" id="cycle">—</div></div>
-        <div class="card"><div class="label">Target Cycles</div><div class="value" id="target">—</div></div>
-        <div class="card"><div class="label">Progress</div><div class="value" id="progress">—</div></div>
-        <div class="card"><div class="label">Gantry</div><div class="value" id="gantry">—</div></div>
-        <div class="card"><div class="label">Profile</div><div class="value" id="profile">—</div></div>
-    </div>
-    <div class="timestamp" id="last-update"></div>
-    <div class="error-banner" id="error-banner" style="display:none"></div>
-
     <div class="section">
-        <h2>Motor Data</h2>
-        <div style="margin-bottom: 12px;">
-            <button class="btn btn-primary" id="request-btn" onclick="requestUpload()">Request Latest Data</button>
-            <span class="request-msg" id="request-msg"></span>
-        </div>
-        <select id="file-select" onchange="loadPlot()">
-            <option value="">Select a recording...</option>
-        </select>
-        <div class="plots">
-            <div class="plot-card"><div id="plot-torque-ac"></div></div>
-            <div class="plot-card"><div id="plot-torque-b"></div></div>
-            <div class="plot-card"><div id="plot-pos-ac"></div></div>
-            <div class="plot-card"><div id="plot-torque-diff"></div></div>
-            <div class="plot-card"><div id="plot-error-ac"></div></div>
-            <div class="plot-card"><div id="plot-pos-diff"></div></div>
+        <h2>All Gantries</h2>
+        <div class="overview" id="gantry-overview">
+            <div style="color:#999">No gantries connected yet.</div>
         </div>
     </div>
 
-    <div class="section">
-        <h2>Recordings</h2>
-        <div class="files" id="file-list"></div>
+    <div id="detail-section" style="display:none">
+        <h2 id="detail-title">Gantry</h2>
+
+        <div class="cards">
+            <div class="card"><div class="label">Status</div><div class="value" id="state">—</div></div>
+            <div class="card"><div class="label">Current Cycle</div><div class="value" id="cycle">—</div></div>
+            <div class="card"><div class="label">Target Cycles</div><div class="value" id="target">—</div></div>
+            <div class="card"><div class="label">Progress</div><div class="value" id="progress">—</div></div>
+            <div class="card"><div class="label">Profile</div><div class="value" id="profile">—</div></div>
+        </div>
+        <div class="timestamp" id="last-update"></div>
+        <div class="error-banner" id="error-banner" style="display:none"></div>
+
+        <div class="section">
+            <h2>Motor Data</h2>
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="request-btn" onclick="requestUpload()">Request Latest Data</button>
+                <span class="request-msg" id="request-msg"></span>
+            </div>
+            <select id="file-select" onchange="loadPlot()" style="margin-bottom:12px;">
+                <option value="">Select a recording...</option>
+            </select>
+            <div class="plots">
+                <div class="plot-card"><div id="plot-torque-ac"></div></div>
+                <div class="plot-card"><div id="plot-torque-b"></div></div>
+                <div class="plot-card"><div id="plot-pos-ac"></div></div>
+                <div class="plot-card"><div id="plot-torque-diff"></div></div>
+                <div class="plot-card"><div id="plot-error-ac"></div></div>
+                <div class="plot-card"><div id="plot-pos-diff"></div></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Recordings</h2>
+            <div class="files" id="file-list"></div>
+        </div>
     </div>
 
     <script>
-        const plotLayout = { height: 280, margin: {t: 35, b: 40, l: 50, r: 20}, font: {size: 11} };
+        let selectedGantry = null;
+        let allStatus = {};
+        const plotLayout = { height: 280, margin: {t:35, b:40, l:50, r:20}, font: {size:11} };
 
-        async function fetchStatus() {
+        async function fetchAllStatus() {
             try {
-                const resp = await fetch('/api/status');
-                const d = await resp.json();
-                const stateEl = document.getElementById('state');
-                const state = d.state || 'offline';
-                stateEl.textContent = state.toUpperCase();
-                stateEl.className = 'value status-' + state;
-                document.getElementById('cycle').textContent = d.current_cycle ?? '—';
-                document.getElementById('target').textContent = d.target_cycles ?? '—';
-                document.getElementById('progress').textContent =
-                    d.progress_percent != null ? Math.round(d.progress_percent) + '%' : '—';
-                document.getElementById('gantry').textContent = d.gantry || '—';
-                document.getElementById('profile').textContent = d.profile || '—';
-                if (d.last_update) {
-                    document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
-                }
-                const errBanner = document.getElementById('error-banner');
-                if (d.state === 'error' && d.error) {
-                    errBanner.textContent = d.error;
-                    errBanner.style.display = 'block';
-                } else {
-                    errBanner.style.display = 'none';
+                const resp = await fetch('/api/status/all');
+                allStatus = await resp.json();
+                renderOverview();
+                if (selectedGantry && allStatus[selectedGantry]) {
+                    updateDetail(allStatus[selectedGantry]);
                 }
             } catch(e) {}
         }
 
+        function renderOverview() {
+            const container = document.getElementById('gantry-overview');
+            const gantries = Object.keys(allStatus);
+            if (gantries.length === 0) {
+                container.innerHTML = '<div style="color:#999">No gantries connected yet.</div>';
+                return;
+            }
+            container.innerHTML = gantries.map(name => {
+                const s = allStatus[name];
+                const state = s.state || 'offline';
+                const color = {running:'#16a34a', error:'#dc2626', completed:'#2563eb', paused:'#d97706'}[state] || '#6b7280';
+                const active = selectedGantry === name ? 'active' : '';
+                const detail = state === 'running'
+                    ? `Cycle ${s.current_cycle || 0} / ${s.target_cycles || '?'}`
+                    : (s.profile || '');
+                return `<div class="overview-card ${active}" onclick="selectGantry('${name}')">
+                    <div class="name">${s.gantry || name}</div>
+                    <div class="status" style="color:${color}">${state.toUpperCase()}</div>
+                    <div class="detail">${detail}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function selectGantry(name) {
+            selectedGantry = name;
+            document.getElementById('detail-section').style.display = 'block';
+            document.getElementById('detail-title').textContent = allStatus[name]?.gantry || name;
+            updateDetail(allStatus[name]);
+            fetchFiles();
+            renderOverview();
+        }
+
+        function updateDetail(d) {
+            if (!d) return;
+            const stateEl = document.getElementById('state');
+            const state = d.state || 'offline';
+            stateEl.textContent = state.toUpperCase();
+            stateEl.className = 'value status-' + state;
+            document.getElementById('cycle').textContent = d.current_cycle ?? '—';
+            document.getElementById('target').textContent = d.target_cycles ?? '—';
+            document.getElementById('progress').textContent =
+                d.progress_percent != null ? Math.round(d.progress_percent) + '%' : '—';
+            document.getElementById('profile').textContent = d.profile || '—';
+            if (d.last_update) {
+                document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
+            }
+            const errBanner = document.getElementById('error-banner');
+            if (d.state === 'error' && d.error) {
+                errBanner.textContent = d.error;
+                errBanner.style.display = 'block';
+            } else {
+                errBanner.style.display = 'none';
+            }
+        }
+
         async function fetchFiles() {
+            if (!selectedGantry) return;
             try {
-                const resp = await fetch('/api/files');
+                const resp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
                 const files = await resp.json();
                 const select = document.getElementById('file-select');
                 const list = document.getElementById('file-list');
+                const gantryPath = encodeURIComponent(selectedGantry);
                 select.innerHTML = '<option value="">Select a recording...</option>';
                 list.innerHTML = '';
                 files.forEach(f => {
                     select.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
-                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span><a href="/api/files/${f.name}">Download</a></div>`;
+                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span><a href="/api/files/${gantryPath}/${f.name}">Download</a></div>`;
                 });
                 if (files.length === 0) {
                     list.innerHTML = '<div style="color:#999;padding:8px 0">No recordings yet.</div>';
@@ -123,11 +183,33 @@
             } catch(e) {}
         }
 
+        async function requestUpload() {
+            if (!selectedGantry) return;
+            const btn = document.getElementById('request-btn');
+            const msg = document.getElementById('request-msg');
+            btn.disabled = true;
+            msg.textContent = 'Requesting...';
+            try {
+                await fetch('/api/request_upload', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({gantry: selectedGantry})
+                });
+                msg.textContent = 'Requested. Waiting for gantry PC (~30s)...';
+                setTimeout(() => { btn.disabled = false; msg.textContent = ''; fetchFiles(); }, 35000);
+            } catch(e) {
+                msg.textContent = 'Failed to send request.';
+                btn.disabled = false;
+            }
+        }
+
         async function loadPlot() {
+            if (!selectedGantry) return;
             const filename = document.getElementById('file-select').value;
             if (!filename) return;
             try {
-                const resp = await fetch('/api/files/' + filename);
+                const gantryPath = encodeURIComponent(selectedGantry);
+                const resp = await fetch(`/api/files/${gantryPath}/${filename}`);
                 const text = await resp.text();
                 const rows = text.trim().split('\n');
                 const headers = rows[0].split(',').map(h => h.trim());
@@ -140,7 +222,6 @@
                 const bTorqueIdx = col('B_torque (V)');
                 const aPosIdx = col('A_position (m)');
                 const cPosIdx = col('C_position (m)');
-                const bPosIdx = col('B_position (m)');
                 const aErrIdx = col('A_pos_error (m)');
                 const cErrIdx = col('C_pos_error (m)');
                 const sampleIdx = headers.findIndex(h => h.includes('sample'));
@@ -196,26 +277,8 @@
             } catch(e) { console.error(e); }
         }
 
-        async function requestUpload() {
-            const btn = document.getElementById('request-btn');
-            const msg = document.getElementById('request-msg');
-            btn.disabled = true;
-            msg.textContent = 'Requesting...';
-            try {
-                const resp = await fetch('/api/request_upload', {method: 'POST'});
-                const data = await resp.json();
-                msg.textContent = 'Requested. Waiting for gantry PC (~30s)...';
-                setTimeout(() => { btn.disabled = false; msg.textContent = ''; fetchFiles(); }, 35000);
-            } catch(e) {
-                msg.textContent = 'Failed to send request.';
-                btn.disabled = false;
-            }
-        }
-
-        fetchStatus();
-        fetchFiles();
-        setInterval(fetchStatus, 10000);
-        setInterval(fetchFiles, 30000);
+        fetchAllStatus();
+        setInterval(fetchAllStatus, 10000);
     </script>
 </body>
 </html>
