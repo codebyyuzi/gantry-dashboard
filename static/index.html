@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gantry Dashboard</title>
+    <meta charset="utf-8">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        h1 { margin: 0 0 20px 0; color: #1a1a1a; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .card .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+        .status-running { color: #16a34a; }
+        .status-error { color: #dc2626; }
+        .status-completed { color: #2563eb; }
+        .status-paused { color: #d97706; }
+        .status-idle, .status-offline { color: #6b7280; }
+        .section { margin-bottom: 24px; }
+        .section h2 { font-size: 16px; margin: 0 0 12px 0; }
+        .plots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .plot-card { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .files { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .file-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .file-row:last-child { border-bottom: none; }
+        .file-row a { color: #2563eb; text-decoration: none; font-size: 13px; }
+        .file-row a:hover { text-decoration: underline; }
+        select { padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; margin-bottom: 12px; }
+        .timestamp { font-size: 11px; color: #999; margin-bottom: 16px; }
+        .error-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 16px; color: #991b1b; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+        .request-msg { font-size: 12px; color: #666; margin-left: 12px; display: inline-block; }
+        @media (max-width: 768px) { .plots { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>H2W Gantry Dashboard</h1>
+
+    <div class="cards">
+        <div class="card"><div class="label">Status</div><div class="value" id="state">—</div></div>
+        <div class="card"><div class="label">Current Cycle</div><div class="value" id="cycle">—</div></div>
+        <div class="card"><div class="label">Target Cycles</div><div class="value" id="target">—</div></div>
+        <div class="card"><div class="label">Progress</div><div class="value" id="progress">—</div></div>
+        <div class="card"><div class="label">Gantry</div><div class="value" id="gantry">—</div></div>
+        <div class="card"><div class="label">Profile</div><div class="value" id="profile">—</div></div>
+    </div>
+    <div class="timestamp" id="last-update"></div>
+    <div class="error-banner" id="error-banner" style="display:none"></div>
+
+    <div class="section">
+        <h2>Motor Data</h2>
+        <div style="margin-bottom: 12px;">
+            <button class="btn btn-primary" id="request-btn" onclick="requestUpload()">Request Latest Data</button>
+            <span class="request-msg" id="request-msg"></span>
+        </div>
+        <select id="file-select" onchange="loadPlot()">
+            <option value="">Select a recording...</option>
+        </select>
+        <div class="plots">
+            <div class="plot-card"><div id="plot-torque-ac"></div></div>
+            <div class="plot-card"><div id="plot-torque-b"></div></div>
+            <div class="plot-card"><div id="plot-pos-ac"></div></div>
+            <div class="plot-card"><div id="plot-torque-diff"></div></div>
+            <div class="plot-card"><div id="plot-error-ac"></div></div>
+            <div class="plot-card"><div id="plot-pos-diff"></div></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Recordings</h2>
+        <div class="files" id="file-list"></div>
+    </div>
+
+    <script>
+        const plotLayout = { height: 280, margin: {t: 35, b: 40, l: 50, r: 20}, font: {size: 11} };
+
+        async function fetchStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const d = await resp.json();
+                const stateEl = document.getElementById('state');
+                const state = d.state || 'offline';
+                stateEl.textContent = state.toUpperCase();
+                stateEl.className = 'value status-' + state;
+                document.getElementById('cycle').textContent = d.current_cycle ?? '—';
+                document.getElementById('target').textContent = d.target_cycles ?? '—';
+                document.getElementById('progress').textContent =
+                    d.progress_percent != null ? Math.round(d.progress_percent) + '%' : '—';
+                document.getElementById('gantry').textContent = d.gantry || '—';
+                document.getElementById('profile').textContent = d.profile || '—';
+                if (d.last_update) {
+                    document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
+                }
+                const errBanner = document.getElementById('error-banner');
+                if (d.state === 'error' && d.error) {
+                    errBanner.textContent = d.error;
+                    errBanner.style.display = 'block';
+                } else {
+                    errBanner.style.display = 'none';
+                }
+            } catch(e) {}
+        }
+
+        async function fetchFiles() {
+            try {
+                const resp = await fetch('/api/files');
+                const files = await resp.json();
+                const select = document.getElementById('file-select');
+                const list = document.getElementById('file-list');
+                select.innerHTML = '<option value="">Select a recording...</option>';
+                list.innerHTML = '';
+                files.forEach(f => {
+                    select.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
+                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span><a href="/api/files/${f.name}">Download</a></div>`;
+                });
+                if (files.length === 0) {
+                    list.innerHTML = '<div style="color:#999;padding:8px 0">No recordings yet.</div>';
+                }
+            } catch(e) {}
+        }
+
+        async function loadPlot() {
+            const filename = document.getElementById('file-select').value;
+            if (!filename) return;
+            try {
+                const resp = await fetch('/api/files/' + filename);
+                const text = await resp.text();
+                const rows = text.trim().split('\n');
+                const headers = rows[0].split(',').map(h => h.trim());
+
+                const col = name => headers.indexOf(name);
+                const aTorqueIdx = col('A_torque (V)');
+                if (aTorqueIdx === -1) { alert('Old format CSV — use plot_motor_data.py'); return; }
+
+                const cTorqueIdx = col('C_torque (V)');
+                const bTorqueIdx = col('B_torque (V)');
+                const aPosIdx = col('A_position (m)');
+                const cPosIdx = col('C_position (m)');
+                const bPosIdx = col('B_position (m)');
+                const aErrIdx = col('A_pos_error (m)');
+                const cErrIdx = col('C_pos_error (m)');
+                const sampleIdx = headers.findIndex(h => h.includes('sample'));
+
+                let intervalMs = 2;
+                const match = headers[sampleIdx].match(/\((\d+)ms\)/);
+                if (match) intervalMs = parseInt(match[1]);
+
+                const time=[], aTrq=[], cTrq=[], bTrq=[], aPos=[], cPos=[], aErr=[], cErr=[];
+                for (let i = 1; i < rows.length; i++) {
+                    const c = rows[i].split(',');
+                    if (c.length < headers.length) continue;
+                    time.push(parseFloat(c[sampleIdx]) * intervalMs / 1000);
+                    aTrq.push(parseFloat(c[aTorqueIdx]));
+                    cTrq.push(parseFloat(c[cTorqueIdx]));
+                    bTrq.push(parseFloat(c[bTorqueIdx]));
+                    aPos.push(parseFloat(c[aPosIdx]));
+                    cPos.push(parseFloat(c[cPosIdx]));
+                    aErr.push(parseFloat(c[aErrIdx]));
+                    cErr.push(parseFloat(c[cErrIdx]));
+                }
+
+                const trqDiff = aTrq.map((a,i) => a - cTrq[i]);
+                const posDiff = aPos.map((a,i) => (a - cPos[i]) * 1000);
+
+                Plotly.newPlot('plot-torque-ac', [
+                    {x:time, y:aTrq, name:'Motor A', line:{width:1}},
+                    {x:time, y:cTrq, name:'Motor C', line:{width:1}}
+                ], {...plotLayout, title:'X-Axis Torque (A vs C)', yaxis:{title:'V'}});
+
+                Plotly.newPlot('plot-torque-b', [
+                    {x:time, y:bTrq, name:'Motor B', line:{width:1, color:'#16a34a'}}
+                ], {...plotLayout, title:'Y-Axis Torque (B)', yaxis:{title:'V'}});
+
+                Plotly.newPlot('plot-pos-ac', [
+                    {x:time, y:aPos, name:'Motor A', line:{width:1}},
+                    {x:time, y:cPos, name:'Motor C', line:{width:1}}
+                ], {...plotLayout, title:'X-Axis Position (A vs C)', yaxis:{title:'m'}});
+
+                Plotly.newPlot('plot-torque-diff', [
+                    {x:time, y:trqDiff, name:'A−C', line:{width:1, color:'#7c3aed'}}
+                ], {...plotLayout, title:'A−C Torque Difference', yaxis:{title:'V'}});
+
+                Plotly.newPlot('plot-error-ac', [
+                    {x:time, y:aErr, name:'Motor A', line:{width:1}},
+                    {x:time, y:cErr, name:'Motor C', line:{width:1}}
+                ], {...plotLayout, title:'X-Axis Position Error (A vs C)', yaxis:{title:'m'}});
+
+                Plotly.newPlot('plot-pos-diff', [
+                    {x:time, y:posDiff, name:'A−C', line:{width:1, color:'#ea580c'}}
+                ], {...plotLayout, title:'A−C Position Difference', yaxis:{title:'mm'}});
+
+            } catch(e) { console.error(e); }
+        }
+
+        async function requestUpload() {
+            const btn = document.getElementById('request-btn');
+            const msg = document.getElementById('request-msg');
+            btn.disabled = true;
+            msg.textContent = 'Requesting...';
+            try {
+                const resp = await fetch('/api/request_upload', {method: 'POST'});
+                const data = await resp.json();
+                msg.textContent = 'Requested. Waiting for gantry PC (~30s)...';
+                setTimeout(() => { btn.disabled = false; msg.textContent = ''; fetchFiles(); }, 35000);
+            } catch(e) {
+                msg.textContent = 'Failed to send request.';
+                btn.disabled = false;
+            }
+        }
+
+        fetchStatus();
+        fetchFiles();
+        setInterval(fetchStatus, 10000);
+        setInterval(fetchFiles, 30000);
+    </script>
+</body>
+</html>
