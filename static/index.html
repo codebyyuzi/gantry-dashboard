@@ -19,8 +19,24 @@
         .status-idle, .status-offline { color: #6b7280; }
         .section { margin-bottom: 24px; }
         .section h2 { font-size: 16px; margin: 0 0 12px 0; }
-        .plots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .plot-card { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .plot-area { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .plot-panel { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .plot-panel h3 { margin: 0 0 10px 0; font-size: 14px; }
+        .channel-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .channel-list label { font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; user-select: none; transition: all 0.15s; }
+        .channel-list label:hover { border-color: #2563eb; }
+        .channel-list input:checked + span { color: white; }
+        .channel-list input { display: none; }
+        .ch-a-pos:has(input:checked) { background: #3b82f6; border-color: #3b82f6; color: white; }
+        .ch-c-pos:has(input:checked) { background: #ef4444; border-color: #ef4444; color: white; }
+        .ch-a-trq:has(input:checked) { background: #3b82f6; border-color: #3b82f6; color: white; }
+        .ch-c-trq:has(input:checked) { background: #ef4444; border-color: #ef4444; color: white; }
+        .ch-a-err:has(input:checked) { background: #8b5cf6; border-color: #8b5cf6; color: white; }
+        .ch-c-err:has(input:checked) { background: #f97316; border-color: #f97316; color: white; }
+        .ch-b-pos:has(input:checked) { background: #16a34a; border-color: #16a34a; color: white; }
+        .ch-b-trq:has(input:checked) { background: #16a34a; border-color: #16a34a; color: white; }
+        .ch-b-err:has(input:checked) { background: #0d9488; border-color: #0d9488; color: white; }
+        .ch-xy:has(input:checked) { background: #7c3aed; border-color: #7c3aed; color: white; }
         .files { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .file-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
         .file-row:last-child { border-bottom: none; }
@@ -41,7 +57,7 @@
         .overview-card .name { font-weight: 600; font-size: 16px; }
         .overview-card .status { font-size: 13px; margin-top: 4px; }
         .overview-card .detail { font-size: 12px; color: #666; margin-top: 4px; }
-        @media (max-width: 768px) { .plots { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .plot-area { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -70,21 +86,38 @@
         <div class="section">
             <h2>Motor Data</h2>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                <button class="btn btn-primary" id="request-btn" onclick="requestUpload('motor_data')">Request Motor Data</button>
-                <button class="btn btn-primary" id="request-log-btn" onclick="requestUpload('controller_log')">Request Controller Log</button>
-                <button class="btn btn-primary" id="request-cycle-btn" onclick="requestUpload('cycle_log')">Request Cycle Log</button>
+                <button class="btn btn-primary" onclick="requestUpload('motor_data')">Request Motor Data</button>
+                <button class="btn btn-primary" onclick="requestUpload('controller_log')">Request Controller Log</button>
+                <button class="btn btn-primary" onclick="requestUpload('cycle_log')">Request Cycle Log</button>
                 <span class="request-msg" id="request-msg"></span>
             </div>
-            <select id="file-select" onchange="loadPlot()" style="margin-bottom:12px;">
+            <select id="file-select" onchange="loadData()" style="margin-bottom:12px;">
                 <option value="">Select a recording...</option>
             </select>
-            <div class="plots">
-                <div class="plot-card"><div id="plot-torque-ac"></div></div>
-                <div class="plot-card"><div id="plot-torque-b"></div></div>
-                <div class="plot-card"><div id="plot-pos-ac"></div></div>
-                <div class="plot-card"><div id="plot-torque-diff"></div></div>
-                <div class="plot-card"><div id="plot-error-ac"></div></div>
-                <div class="plot-card"><div id="plot-pos-diff"></div></div>
+
+            <div class="plot-area">
+                <div class="plot-panel">
+                    <h3>X-Axis (Motors A & C)</h3>
+                    <div class="channel-list" id="x-channels">
+                        <label class="ch-a-pos"><input type="checkbox" name="x-ch" value="a_pos" checked onchange="updatePlots()"><span>A Position</span></label>
+                        <label class="ch-c-pos"><input type="checkbox" name="x-ch" value="c_pos" checked onchange="updatePlots()"><span>C Position</span></label>
+                        <label class="ch-a-trq"><input type="checkbox" name="x-ch" value="a_trq" onchange="updatePlots()"><span>A Torque</span></label>
+                        <label class="ch-c-trq"><input type="checkbox" name="x-ch" value="c_trq" onchange="updatePlots()"><span>C Torque</span></label>
+                        <label class="ch-a-err"><input type="checkbox" name="x-ch" value="a_err" onchange="updatePlots()"><span>A Pos Error</span></label>
+                        <label class="ch-c-err"><input type="checkbox" name="x-ch" value="c_err" onchange="updatePlots()"><span>C Pos Error</span></label>
+                    </div>
+                    <div id="plot-x"></div>
+                </div>
+                <div class="plot-panel">
+                    <h3>Y-Axis (Motor B)</h3>
+                    <div class="channel-list" id="y-channels">
+                        <label class="ch-b-pos"><input type="checkbox" name="y-ch" value="b_pos" checked onchange="updatePlots()"><span>B Position</span></label>
+                        <label class="ch-b-trq"><input type="checkbox" name="y-ch" value="b_trq" onchange="updatePlots()"><span>B Torque</span></label>
+                        <label class="ch-b-err"><input type="checkbox" name="y-ch" value="b_err" onchange="updatePlots()"><span>B Pos Error</span></label>
+                        <label class="ch-xy"><input type="checkbox" name="y-ch" value="xy_path" onchange="updatePlots()"><span>XY Path</span></label>
+                    </div>
+                    <div id="plot-y"></div>
+                </div>
             </div>
         </div>
 
@@ -97,16 +130,26 @@
     <script>
         let selectedGantry = null;
         let allStatus = {};
-        const plotLayout = { height: 280, margin: {t:35, b:40, l:50, r:20}, font: {size:11} };
+        let plotData = null;
+        const plotLayout = { height: 350, margin: {t:10, b:40, l:55, r:20}, font: {size:11}, showlegend: true, legend: {x:0, y:1.15, orientation:'h'} };
+
+        const COLORS = {
+            a_pos: '#3b82f6', c_pos: '#ef4444', a_trq: '#3b82f6', c_trq: '#ef4444',
+            a_err: '#8b5cf6', c_err: '#f97316', b_pos: '#16a34a', b_trq: '#16a34a', b_err: '#0d9488'
+        };
+        const LABELS = {
+            a_pos: 'A Position (m)', c_pos: 'C Position (m)',
+            a_trq: 'A Torque (V)', c_trq: 'C Torque (V)',
+            a_err: 'A Pos Error (m)', c_err: 'C Pos Error (m)',
+            b_pos: 'B Position (m)', b_trq: 'B Torque (V)', b_err: 'B Pos Error (m)'
+        };
 
         async function fetchAllStatus() {
             try {
                 const resp = await fetch('/api/status/all');
                 allStatus = await resp.json();
                 renderOverview();
-                if (selectedGantry && allStatus[selectedGantry]) {
-                    updateDetail(allStatus[selectedGantry]);
-                }
+                if (selectedGantry && allStatus[selectedGantry]) updateDetail(allStatus[selectedGantry]);
             } catch(e) {}
         }
 
@@ -138,11 +181,10 @@
             document.getElementById('detail-section').style.display = 'block';
             document.getElementById('detail-title').textContent = allStatus[name]?.gantry || name;
             updateDetail(allStatus[name]);
-            // Clear plots and file selection
             document.getElementById('file-select').value = '';
-            ['plot-torque-ac','plot-torque-b','plot-pos-ac','plot-torque-diff','plot-error-ac','plot-pos-diff'].forEach(id => {
-                document.getElementById(id).innerHTML = '';
-            });
+            plotData = null;
+            document.getElementById('plot-x').innerHTML = '';
+            document.getElementById('plot-y').innerHTML = '';
             fetchFiles();
             renderOverview();
         }
@@ -158,16 +200,10 @@
             document.getElementById('progress').textContent =
                 d.progress_percent != null ? Math.round(d.progress_percent) + '%' : '—';
             document.getElementById('profile').textContent = d.profile || '—';
-            if (d.last_update) {
-                document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
-            }
+            if (d.last_update) document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
             const errBanner = document.getElementById('error-banner');
-            if (d.state === 'error' && d.error) {
-                errBanner.textContent = d.error;
-                errBanner.style.display = 'block';
-            } else {
-                errBanner.style.display = 'none';
-            }
+            if (d.state === 'error' && d.error) { errBanner.textContent = d.error; errBanner.style.display = 'block'; }
+            else { errBanner.style.display = 'none'; }
         }
 
         async function fetchFiles() {
@@ -184,9 +220,7 @@
                     select.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
                     list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span><a href="/api/files/${gantryPath}/${f.name}">Download</a></div>`;
                 });
-                if (files.length === 0) {
-                    list.innerHTML = '<div style="color:#999;padding:8px 0">No recordings yet.</div>';
-                }
+                if (files.length === 0) list.innerHTML = '<div style="color:#999;padding:8px 0">No recordings yet.</div>';
             } catch(e) {}
         }
 
@@ -195,7 +229,7 @@
             const msg = document.getElementById('request-msg');
             const btns = document.querySelectorAll('.btn-primary');
             btns.forEach(b => b.disabled = true);
-            msg.textContent = `Requesting ${type.replace('_', ' ')}...`;
+            msg.textContent = `Requesting ${type.replace(/_/g, ' ')}...`;
             try {
                 await fetch('/api/request_upload', {
                     method: 'POST',
@@ -210,10 +244,10 @@
             }
         }
 
-        async function loadPlot() {
+        async function loadData() {
             if (!selectedGantry) return;
             const filename = document.getElementById('file-select').value;
-            if (!filename) return;
+            if (!filename) { plotData = null; updatePlots(); return; }
             try {
                 const gantryPath = encodeURIComponent(selectedGantry);
                 const resp = await fetch(`/api/files/${gantryPath}/${filename}`);
@@ -229,6 +263,7 @@
                 const bTorqueIdx = col('B_torque (V)');
                 const aPosIdx = col('A_position (m)');
                 const cPosIdx = col('C_position (m)');
+                const bPosIdx = col('B_position (m)');
                 const aErrIdx = col('A_pos_error (m)');
                 const cErrIdx = col('C_pos_error (m)');
                 const sampleIdx = headers.findIndex(h => h.includes('sample'));
@@ -237,51 +272,81 @@
                 const match = headers[sampleIdx].match(/\((\d+)ms\)/);
                 if (match) intervalMs = parseInt(match[1]);
 
-                const time=[], aTrq=[], cTrq=[], bTrq=[], aPos=[], cPos=[], aErr=[], cErr=[];
+                const d = {time:[], a_pos:[], c_pos:[], a_trq:[], c_trq:[], b_pos:[], b_trq:[], a_err:[], c_err:[], b_err:[]};
                 for (let i = 1; i < rows.length; i++) {
                     const c = rows[i].split(',');
                     if (c.length < headers.length) continue;
-                    time.push(parseFloat(c[sampleIdx]) * intervalMs / 1000);
-                    aTrq.push(parseFloat(c[aTorqueIdx]));
-                    cTrq.push(parseFloat(c[cTorqueIdx]));
-                    bTrq.push(parseFloat(c[bTorqueIdx]));
-                    aPos.push(parseFloat(c[aPosIdx]));
-                    cPos.push(parseFloat(c[cPosIdx]));
-                    aErr.push(parseFloat(c[aErrIdx]));
-                    cErr.push(parseFloat(c[cErrIdx]));
+                    d.time.push(parseFloat(c[sampleIdx]) * intervalMs / 1000);
+                    d.a_pos.push(parseFloat(c[aPosIdx]));
+                    d.c_pos.push(parseFloat(c[cPosIdx]));
+                    d.a_trq.push(parseFloat(c[aTorqueIdx]));
+                    d.c_trq.push(parseFloat(c[cTorqueIdx]));
+                    d.b_pos.push(parseFloat(c[bPosIdx]));
+                    d.b_trq.push(parseFloat(c[bTorqueIdx]));
+                    d.a_err.push(parseFloat(c[aErrIdx]));
+                    d.c_err.push(parseFloat(c[cErrIdx]));
+                    d.b_err.push(0); // B error not recorded currently
                 }
-
-                const trqDiff = aTrq.map((a,i) => a - cTrq[i]);
-                const posDiff = aPos.map((a,i) => (a - cPos[i]) * 1000);
-
-                Plotly.newPlot('plot-torque-ac', [
-                    {x:time, y:aTrq, name:'Motor A', line:{width:1}},
-                    {x:time, y:cTrq, name:'Motor C', line:{width:1}}
-                ], {...plotLayout, title:'X-Axis Torque (A vs C)', yaxis:{title:'V'}});
-
-                Plotly.newPlot('plot-torque-b', [
-                    {x:time, y:bTrq, name:'Motor B', line:{width:1, color:'#16a34a'}}
-                ], {...plotLayout, title:'Y-Axis Torque (B)', yaxis:{title:'V'}});
-
-                Plotly.newPlot('plot-pos-ac', [
-                    {x:time, y:aPos, name:'Motor A', line:{width:1}},
-                    {x:time, y:cPos, name:'Motor C', line:{width:1}}
-                ], {...plotLayout, title:'X-Axis Position (A vs C)', yaxis:{title:'m'}});
-
-                Plotly.newPlot('plot-torque-diff', [
-                    {x:time, y:trqDiff, name:'A−C', line:{width:1, color:'#7c3aed'}}
-                ], {...plotLayout, title:'A−C Torque Difference', yaxis:{title:'V'}});
-
-                Plotly.newPlot('plot-error-ac', [
-                    {x:time, y:aErr, name:'Motor A', line:{width:1}},
-                    {x:time, y:cErr, name:'Motor C', line:{width:1}}
-                ], {...plotLayout, title:'X-Axis Position Error (A vs C)', yaxis:{title:'m'}});
-
-                Plotly.newPlot('plot-pos-diff', [
-                    {x:time, y:posDiff, name:'A−C', line:{width:1, color:'#ea580c'}}
-                ], {...plotLayout, title:'A−C Position Difference', yaxis:{title:'mm'}});
-
+                plotData = d;
+                updatePlots();
             } catch(e) { console.error(e); }
+        }
+
+        function updatePlots() {
+            if (!plotData) {
+                document.getElementById('plot-x').innerHTML = '';
+                document.getElementById('plot-y').innerHTML = '';
+                return;
+            }
+
+            // X-axis plot
+            const xChecked = [...document.querySelectorAll('#x-channels input:checked')].map(el => el.value);
+            const xTraces = [];
+            xChecked.forEach(ch => {
+                if (plotData[ch]) {
+                    xTraces.push({
+                        x: plotData.time, y: plotData[ch],
+                        name: LABELS[ch], line: {width: 1, color: COLORS[ch]}
+                    });
+                }
+            });
+            if (xTraces.length > 0) {
+                Plotly.newPlot('plot-x', xTraces, {...plotLayout, xaxis:{title:'Time (s)'}});
+            } else {
+                document.getElementById('plot-x').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
+            }
+
+            // Y-axis plot
+            const yChecked = [...document.querySelectorAll('#y-channels input:checked')].map(el => el.value);
+            const yTraces = [];
+            const isXYPath = yChecked.includes('xy_path');
+
+            if (isXYPath) {
+                // XY trajectory plot
+                yTraces.push({
+                    x: plotData.a_pos, y: plotData.b_pos,
+                    name: 'XY Path', mode: 'lines', line: {width: 1, color: '#7c3aed'}
+                });
+                Plotly.newPlot('plot-y', yTraces, {
+                    ...plotLayout,
+                    xaxis: {title: 'X Position (m)', scaleanchor: 'y'},
+                    yaxis: {title: 'Y Position (m)'}
+                });
+            } else {
+                yChecked.forEach(ch => {
+                    if (plotData[ch]) {
+                        yTraces.push({
+                            x: plotData.time, y: plotData[ch],
+                            name: LABELS[ch], line: {width: 1, color: COLORS[ch]}
+                        });
+                    }
+                });
+                if (yTraces.length > 0) {
+                    Plotly.newPlot('plot-y', yTraces, {...plotLayout, xaxis:{title:'Time (s)'}});
+                } else {
+                    document.getElementById('plot-y').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
+                }
+            }
         }
 
         fetchAllStatus();
