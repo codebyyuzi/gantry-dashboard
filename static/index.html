@@ -114,10 +114,13 @@
                         <label class="ch-b-pos"><input type="checkbox" name="y-ch" value="b_pos" checked onchange="updatePlots()"><span>B Position</span></label>
                         <label class="ch-b-trq"><input type="checkbox" name="y-ch" value="b_trq" onchange="updatePlots()"><span>B Torque</span></label>
                         <label class="ch-b-err"><input type="checkbox" name="y-ch" value="b_err" onchange="updatePlots()"><span>B Pos Error</span></label>
-                        <label class="ch-xy"><input type="checkbox" name="y-ch" value="xy_path" onchange="updatePlots()"><span>XY Path</span></label>
                     </div>
                     <div id="plot-y"></div>
                 </div>
+            </div>
+            <div class="plot-panel" style="margin-top:12px;" id="xy-panel">
+                <h3>XY Trajectory</h3>
+                <div id="plot-xy"></div>
             </div>
         </div>
 
@@ -185,6 +188,8 @@
             plotData = null;
             document.getElementById('plot-x').innerHTML = '';
             document.getElementById('plot-y').innerHTML = '';
+            document.getElementById('plot-xy').innerHTML = '';
+            document.getElementById('xy-panel').style.display = 'none';
             fetchFiles();
             renderOverview();
         }
@@ -296,6 +301,8 @@
             if (!plotData) {
                 document.getElementById('plot-x').innerHTML = '';
                 document.getElementById('plot-y').innerHTML = '';
+                document.getElementById('plot-xy').innerHTML = '';
+                document.getElementById('xy-panel').style.display = 'none';
                 return;
             }
 
@@ -319,34 +326,30 @@
             // Y-axis plot
             const yChecked = [...document.querySelectorAll('#y-channels input:checked')].map(el => el.value);
             const yTraces = [];
-            const isXYPath = yChecked.includes('xy_path');
-
-            if (isXYPath) {
-                // XY trajectory plot
-                yTraces.push({
-                    x: plotData.a_pos, y: plotData.b_pos,
-                    name: 'XY Path', mode: 'lines', line: {width: 1, color: '#7c3aed'}
-                });
-                Plotly.newPlot('plot-y', yTraces, {
-                    ...plotLayout,
-                    xaxis: {title: 'X Position (m)', scaleanchor: 'y'},
-                    yaxis: {title: 'Y Position (m)'}
-                });
-            } else {
-                yChecked.forEach(ch => {
-                    if (plotData[ch]) {
-                        yTraces.push({
-                            x: plotData.time, y: plotData[ch],
-                            name: LABELS[ch], line: {width: 1, color: COLORS[ch]}
-                        });
-                    }
-                });
-                if (yTraces.length > 0) {
-                    Plotly.newPlot('plot-y', yTraces, {...plotLayout, xaxis:{title:'Time (s)'}});
-                } else {
-                    document.getElementById('plot-y').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
+            yChecked.forEach(ch => {
+                if (plotData[ch]) {
+                    yTraces.push({
+                        x: plotData.time, y: plotData[ch],
+                        name: LABELS[ch], line: {width: 1, color: COLORS[ch]}
+                    });
                 }
+            });
+            if (yTraces.length > 0) {
+                Plotly.newPlot('plot-y', yTraces, {...plotLayout, xaxis:{title:'Time (s)'}});
+            } else {
+                document.getElementById('plot-y').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
+
+            // XY trajectory (separate plot, always shown when data loaded)
+            document.getElementById('xy-panel').style.display = 'block';
+            Plotly.newPlot('plot-xy', [{
+                x: plotData.b_pos, y: plotData.a_pos,
+                name: 'XY Path', mode: 'lines', line: {width: 1, color: '#7c3aed'}
+            }], {
+                ...plotLayout, height: 400,
+                xaxis: {title: 'Y Position - B (m)', scaleanchor: 'y'},
+                yaxis: {title: 'X Position - A (m)'}
+            });
         }
 
         fetchAllStatus();
