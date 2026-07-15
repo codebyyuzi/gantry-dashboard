@@ -138,6 +138,11 @@
             document.getElementById('detail-section').style.display = 'block';
             document.getElementById('detail-title').textContent = allStatus[name]?.gantry || name;
             updateDetail(allStatus[name]);
+            // Clear plots and file selection
+            document.getElementById('file-select').value = '';
+            ['plot-torque-ac','plot-torque-b','plot-pos-ac','plot-torque-diff','plot-error-ac','plot-pos-diff'].forEach(id => {
+                document.getElementById(id).innerHTML = '';
+            });
             fetchFiles();
             renderOverview();
         }
