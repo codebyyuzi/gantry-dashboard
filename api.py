@@ -100,17 +100,20 @@ def upload_motor_data():
 def request_upload():
     data = request.get_json() or {}
     gantry = data.get("gantry")
+    req_type = data.get("type", "motor_data")
     if not gantry:
         return jsonify({"error": "Missing 'gantry' field"}), 400
+    if req_type not in ("motor_data", "controller_log", "cycle_log"):
+        return jsonify({"error": "Invalid type. Use: motor_data, controller_log, cycle_log"}), 400
     req_data = {
         "requested_at": datetime.now().isoformat(),
-        "type": "motor_data",
+        "type": req_type,
         "gantry": gantry,
     }
     filepath = os.path.join(_request_dir(), f"{_safe_name(gantry)}.json")
     with open(filepath, "w") as f:
         json.dump(req_data, f)
-    return jsonify({"ok": True, "message": f"Upload requested from {gantry}."})
+    return jsonify({"ok": True, "message": f"{req_type} requested from {gantry}."})
 
 
 @app.route("/api/pending_requests", methods=["GET"])

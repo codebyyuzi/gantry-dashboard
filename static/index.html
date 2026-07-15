@@ -70,7 +70,9 @@
         <div class="section">
             <h2>Motor Data</h2>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                <button class="btn btn-primary" id="request-btn" onclick="requestUpload()">Request Latest Data</button>
+                <button class="btn btn-primary" id="request-btn" onclick="requestUpload('motor_data')">Request Motor Data</button>
+                <button class="btn btn-primary" id="request-log-btn" onclick="requestUpload('controller_log')">Request Controller Log</button>
+                <button class="btn btn-primary" id="request-cycle-btn" onclick="requestUpload('cycle_log')">Request Cycle Log</button>
                 <span class="request-msg" id="request-msg"></span>
             </div>
             <select id="file-select" onchange="loadPlot()" style="margin-bottom:12px;">
@@ -183,23 +185,23 @@
             } catch(e) {}
         }
 
-        async function requestUpload() {
+        async function requestUpload(type) {
             if (!selectedGantry) return;
-            const btn = document.getElementById('request-btn');
             const msg = document.getElementById('request-msg');
-            btn.disabled = true;
-            msg.textContent = 'Requesting...';
+            const btns = document.querySelectorAll('.btn-primary');
+            btns.forEach(b => b.disabled = true);
+            msg.textContent = `Requesting ${type.replace('_', ' ')}...`;
             try {
                 await fetch('/api/request_upload', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({gantry: selectedGantry})
+                    body: JSON.stringify({gantry: selectedGantry, type: type})
                 });
                 msg.textContent = 'Requested. Waiting for gantry PC (~30s)...';
-                setTimeout(() => { btn.disabled = false; msg.textContent = ''; fetchFiles(); }, 35000);
+                setTimeout(() => { btns.forEach(b => b.disabled = false); msg.textContent = ''; fetchFiles(); }, 35000);
             } catch(e) {
                 msg.textContent = 'Failed to send request.';
-                btn.disabled = false;
+                btns.forEach(b => b.disabled = false);
             }
         }
 
