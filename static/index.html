@@ -272,26 +272,49 @@
                 const aErrIdx = col('A_pos_error (m)');
                 const cErrIdx = col('C_pos_error (m)');
                 const sampleIdx = headers.findIndex(h => h.includes('sample'));
+                const cycleIdx = col('cycle');
 
                 let intervalMs = 2;
                 const match = headers[sampleIdx].match(/\((\d+)ms\)/);
                 if (match) intervalMs = parseInt(match[1]);
 
-                const d = {time:[], a_pos:[], c_pos:[], a_trq:[], c_trq:[], b_pos:[], b_trq:[], a_err:[], c_err:[], b_err:[]};
+                // Group by cycle (snapshot), then concatenate sequentially
+                const snapshots = {};
                 for (let i = 1; i < rows.length; i++) {
                     const c = rows[i].split(',');
                     if (c.length < headers.length) continue;
-                    d.time.push(parseFloat(c[sampleIdx]) * intervalMs / 1000);
-                    d.a_pos.push(parseFloat(c[aPosIdx]));
-                    d.c_pos.push(parseFloat(c[cPosIdx]));
-                    d.a_trq.push(parseFloat(c[aTorqueIdx]));
-                    d.c_trq.push(parseFloat(c[cTorqueIdx]));
-                    d.b_pos.push(parseFloat(c[bPosIdx]));
-                    d.b_trq.push(parseFloat(c[bTorqueIdx]));
-                    d.a_err.push(parseFloat(c[aErrIdx]));
-                    d.c_err.push(parseFloat(c[cErrIdx]));
-                    d.b_err.push(0); // B error not recorded currently
+                    const cycle = cycleIdx >= 0 ? c[cycleIdx].trim() : '0';
+                    if (!snapshots[cycle]) snapshots[cycle] = [];
+                    snapshots[cycle].push(c);
                 }
+
+                const cycles = Object.keys(snapshots).sort((a,b) => parseFloat(a) - parseFloat(b));
+                const d = {time:[], a_pos:[], c_pos:[], a_trq:[], c_trq:[], b_pos:[], b_trq:[], a_err:[], c_err:[], b_err:[], snapBoundaries:[]};
+
+                let timeOffset = 0;
+                cycles.forEach((cycle, snapIdx) => {
+                    const snapRows = snapshots[cycle];
+                    const snapDuration = snapRows.length * intervalMs / 1000;
+                    if (snapIdx > 0) {
+                        d.time.push(null); d.a_pos.push(null); d.c_pos.push(null);
+                        d.a_trq.push(null); d.c_trq.push(null); d.b_pos.push(null);
+                        d.b_trq.push(null); d.a_err.push(null); d.c_err.push(null); d.b_err.push(null);
+                    }
+                    d.snapBoundaries.push({time: timeOffset, cycle: cycle});
+                    snapRows.forEach(c => {
+                        d.time.push(timeOffset + parseFloat(c[sampleIdx]) * intervalMs / 1000);
+                        d.a_pos.push(parseFloat(c[aPosIdx]));
+                        d.c_pos.push(parseFloat(c[cPosIdx]));
+                        d.a_trq.push(parseFloat(c[aTorqueIdx]));
+                        d.c_trq.push(parseFloat(c[cTorqueIdx]));
+                        d.b_pos.push(parseFloat(c[bPosIdx]));
+                        d.b_trq.push(parseFloat(c[bTorqueIdx]));
+                        d.a_err.push(parseFloat(c[aErrIdx]));
+                        d.c_err.push(parseFloat(c[cErrIdx]));
+                        d.b_err.push(0);
+                    });
+                    timeOffset += snapDuration + 1; // 1s gap between snapshots
+                });
                 plotData = d;
                 updatePlots();
             } catch(e) { console.error(e); }
@@ -306,19 +329,29 @@
                 return;
             }
 
+            // Snapshot boundary lines
+            const shapes = (plotData.snapBoundaries || []).slice(1).map(b => ({
+                type: 'line', x0: b.time, x1: b.time, y0: 0, y1: 1, yref: 'paper',
+                line: {color: '#ccc', width: 1, dash: 'dot'}
+            }));
+            const annotations = (plotData.snapBoundaries || []).map(b => ({
+                x: b.time, y: 1, yref: 'paper', text: `c${b.cycle}`,
+                showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
+            }));
+
             // X-axis plot
             const xChecked = [...document.querySelectorAll('#x-channels input:checked')].map(el => el.value);
             const xTraces = [];
             xChecked.forEach(ch => {
                 if (plotData[ch]) {
                     xTraces.push({
-                        x: plotData.time, y: plotData[ch],
+                        x: plotData.time, y: plotData[ch], connectgaps: false,
                         name: LABELS[ch], line: {width: 1, color: COLORS[ch]}
                     });
                 }
             });
             if (xTraces.length > 0) {
-                Plotly.newPlot('plot-x', xTraces, {...plotLayout, xaxis:{title:'Time (s)'}});
+                Plotly.newPlot('plot-x', xTraces, {...plotLayout, xaxis:{title:'Time (s)'}, shapes, annotations});
             } else {
                 document.getElementById('plot-x').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
@@ -329,13 +362,13 @@
             yChecked.forEach(ch => {
                 if (plotData[ch]) {
                     yTraces.push({
-                        x: plotData.time, y: plotData[ch],
+                        x: plotData.time, y: plotData[ch], connectgaps: false,
                         name: LABELS[ch], line: {width: 1, color: COLORS[ch]}
                     });
                 }
             });
             if (yTraces.length > 0) {
-                Plotly.newPlot('plot-y', yTraces, {...plotLayout, xaxis:{title:'Time (s)'}});
+                Plotly.newPlot('plot-y', yTraces, {...plotLayout, xaxis:{title:'Time (s)'}, shapes, annotations});
             } else {
                 document.getElementById('plot-y').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
