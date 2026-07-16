@@ -309,7 +309,7 @@
                         } else if (attempts >= 8) {
                             clearInterval(checkInterval);
                             btns.forEach(b => b.disabled = false);
-                            msg.textContent = '✗ No response from gantry PC. Is it connected?';
+                            msg.textContent = '✗ No response from gantry PC.';
                             msg.style.color = '#dc2626';
                             setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 8000);
                         }
