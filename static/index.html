@@ -441,11 +441,15 @@
                 showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
             }));
 
-            // Compute peak torques (always in V now)
+            // Compute peak and RMS torques (always in V now)
             const valid = arr => arr.filter(v => v !== null && !isNaN(v));
+            const rms = arr => { const v = valid(arr); return Math.sqrt(v.reduce((s,x) => s + x*x, 0) / v.length); };
             const peakA = Math.max(...valid(plotData.a_trq).map(Math.abs));
             const peakC = Math.max(...valid(plotData.c_trq).map(Math.abs));
             const peakB = Math.max(...valid(plotData.b_trq).map(Math.abs));
+            const rmsA = rms(plotData.a_trq);
+            const rmsC = rms(plotData.c_trq);
+            const rmsB = rms(plotData.b_trq);
 
             // Add torque limit shapes for X plot (if torque channels visible)
             const xChecked = [...document.querySelectorAll('#x-channels input:checked')].map(el => el.value);
@@ -480,7 +484,7 @@
             if (xTraces.length > 0) {
                 const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: xShapes, annotations: xAnnotations};
                 if (xHasTorque) {
-                    layout.title = {text: `Peak torque: A=${peakA.toFixed(2)}V, C=${peakC.toFixed(2)}V`, font:{size:10}};
+                    layout.title = {text: `Peak: A=${peakA.toFixed(2)}V, C=${peakC.toFixed(2)}V  |  RMS: A=${rmsA.toFixed(2)}V, C=${rmsC.toFixed(2)}V`, font:{size:10}};
                 }
                 Plotly.newPlot('plot-x', xTraces, layout);
             } else {
@@ -519,7 +523,7 @@
             if (yTraces.length > 0) {
                 const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: yShapes, annotations: yAnnotations};
                 if (yHasTorque) {
-                    layout.title = {text: `Peak torque: B=${peakB.toFixed(2)}V`, font:{size:10}};
+                    layout.title = {text: `Peak: B=${peakB.toFixed(2)}V  |  RMS: B=${rmsB.toFixed(2)}V`, font:{size:10}};
                 }
                 Plotly.newPlot('plot-y', yTraces, layout);
             } else {
