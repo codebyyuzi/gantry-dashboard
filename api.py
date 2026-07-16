@@ -73,8 +73,20 @@ def update_status():
     gantry = data.get("gantry")
     if not gantry:
         return jsonify({"error": "Missing 'gantry' field"}), 400
-    data["last_update"] = datetime.now().isoformat()
+
     filepath = os.path.join(_status_dir(), f"{_safe_name(gantry)}.json")
+
+    # Heartbeat: only update timestamp, preserve existing state
+    if data.get("heartbeat"):
+        if os.path.exists(filepath):
+            with open(filepath) as f:
+                existing = json.load(f)
+            existing["last_update"] = datetime.now().isoformat()
+            with open(filepath, "w") as f:
+                json.dump(existing, f)
+        return jsonify({"ok": True})
+
+    data["last_update"] = datetime.now().isoformat()
     with open(filepath, "w") as f:
         json.dump(data, f)
     return jsonify({"ok": True})

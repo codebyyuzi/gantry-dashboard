@@ -16,6 +16,9 @@
         .status-error { color: #dc2626; }
         .status-completed { color: #2563eb; }
         .status-paused { color: #d97706; }
+        .status-connected { color: #0891b2; }
+        .status-disconnected { color: #6b7280; }
+        .status-unresponsive { color: #991b1b; }
         .status-idle, .status-offline { color: #6b7280; }
         .section { margin-bottom: 24px; }
         .section h2 { font-size: 16px; margin: 0 0 12px 0; }
@@ -29,12 +32,15 @@
         .channel-list input { display: none; }
         .ch-a-pos:has(input:checked) { background: #3b82f6; border-color: #3b82f6; color: white; }
         .ch-c-pos:has(input:checked) { background: #ef4444; border-color: #ef4444; color: white; }
-        .ch-a-trq:has(input:checked) { background: #3b82f6; border-color: #3b82f6; color: white; }
-        .ch-c-trq:has(input:checked) { background: #ef4444; border-color: #ef4444; color: white; }
+        .ch-a-vel:has(input:checked) { background: #60a5fa; border-color: #60a5fa; color: white; }
+        .ch-c-vel:has(input:checked) { background: #f87171; border-color: #f87171; color: white; }
+        .ch-a-trq:has(input:checked) { background: #2563eb; border-color: #2563eb; color: white; }
+        .ch-c-trq:has(input:checked) { background: #dc2626; border-color: #dc2626; color: white; }
         .ch-a-err:has(input:checked) { background: #8b5cf6; border-color: #8b5cf6; color: white; }
         .ch-c-err:has(input:checked) { background: #f97316; border-color: #f97316; color: white; }
         .ch-b-pos:has(input:checked) { background: #16a34a; border-color: #16a34a; color: white; }
-        .ch-b-trq:has(input:checked) { background: #16a34a; border-color: #16a34a; color: white; }
+        .ch-b-vel:has(input:checked) { background: #4ade80; border-color: #4ade80; color: white; }
+        .ch-b-trq:has(input:checked) { background: #059669; border-color: #059669; color: white; }
         .ch-b-err:has(input:checked) { background: #0d9488; border-color: #0d9488; color: white; }
         .ch-xy:has(input:checked) { background: #7c3aed; border-color: #7c3aed; color: white; }
         .files { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
@@ -110,6 +116,8 @@
                     <div class="channel-list" id="x-channels">
                         <label class="ch-a-pos"><input type="checkbox" name="x-ch" value="a_pos" checked onchange="updatePlots()"><span>A Position</span></label>
                         <label class="ch-c-pos"><input type="checkbox" name="x-ch" value="c_pos" checked onchange="updatePlots()"><span>C Position</span></label>
+                        <label class="ch-a-vel"><input type="checkbox" name="x-ch" value="a_vel" onchange="updatePlots()"><span>A Velocity</span></label>
+                        <label class="ch-c-vel"><input type="checkbox" name="x-ch" value="c_vel" onchange="updatePlots()"><span>C Velocity</span></label>
                         <label class="ch-a-trq"><input type="checkbox" name="x-ch" value="a_trq" onchange="updatePlots()"><span>A Torque</span></label>
                         <label class="ch-c-trq"><input type="checkbox" name="x-ch" value="c_trq" onchange="updatePlots()"><span>C Torque</span></label>
                         <label class="ch-a-err"><input type="checkbox" name="x-ch" value="a_err" onchange="updatePlots()"><span>A Pos Error</span></label>
@@ -121,6 +129,7 @@
                     <h3>Y-Axis (Motor B)</h3>
                     <div class="channel-list" id="y-channels">
                         <label class="ch-b-pos"><input type="checkbox" name="y-ch" value="b_pos" checked onchange="updatePlots()"><span>B Position</span></label>
+                        <label class="ch-b-vel"><input type="checkbox" name="y-ch" value="b_vel" onchange="updatePlots()"><span>B Velocity</span></label>
                         <label class="ch-b-trq"><input type="checkbox" name="y-ch" value="b_trq" onchange="updatePlots()"><span>B Torque</span></label>
                         <label class="ch-b-err"><input type="checkbox" name="y-ch" value="b_err" onchange="updatePlots()"><span>B Pos Error</span></label>
                     </div>
@@ -156,14 +165,17 @@
         const plotLayout = { height: 350, margin: {t:10, b:40, l:55, r:20}, font: {size:11}, showlegend: true, legend: {x:0, y:1.15, orientation:'h'} };
 
         const COLORS = {
-            a_pos: '#3b82f6', c_pos: '#ef4444', a_trq: '#3b82f6', c_trq: '#ef4444',
-            a_err: '#8b5cf6', c_err: '#f97316', b_pos: '#16a34a', b_trq: '#16a34a', b_err: '#0d9488'
+            a_pos: '#3b82f6', c_pos: '#ef4444', a_vel: '#60a5fa', c_vel: '#f87171',
+            a_trq: '#2563eb', c_trq: '#dc2626', a_err: '#8b5cf6', c_err: '#f97316',
+            b_pos: '#16a34a', b_vel: '#4ade80', b_trq: '#059669', b_err: '#0d9488'
         };
         const LABELS = {
             a_pos: 'A Position (m)', c_pos: 'C Position (m)',
+            a_vel: 'A Velocity (m/s)', c_vel: 'C Velocity (m/s)',
             a_trq: 'A Torque (V)', c_trq: 'C Torque (V)',
             a_err: 'A Pos Error (m)', c_err: 'C Pos Error (m)',
-            b_pos: 'B Position (m)', b_trq: 'B Torque (V)', b_err: 'B Pos Error'
+            b_pos: 'B Position (m)', b_vel: 'B Velocity (m/s)',
+            b_trq: 'B Torque (V)', b_err: 'B Pos Error'
         };
 
         async function fetchAllStatus() {
@@ -184,11 +196,18 @@
             }
             container.innerHTML = gantries.map(name => {
                 const s = allStatus[name];
-                const state = s.state || 'offline';
-                const color = {running:'#16a34a', error:'#dc2626', completed:'#2563eb', paused:'#d97706'}[state] || '#6b7280';
+                let state = s.state || 'offline';
+                // Check if last_update is stale (>2 minutes)
+                if (s.last_update && state !== 'disconnected' && state !== 'offline') {
+                    const lastUpdate = new Date(s.last_update);
+                    const ageMs = Date.now() - lastUpdate.getTime();
+                    if (ageMs > 120000) state = 'unresponsive';
+                }
+                const color = {running:'#16a34a', error:'#dc2626', completed:'#2563eb', paused:'#d97706', connected:'#0891b2', disconnected:'#6b7280', unresponsive:'#991b1b'}[state] || '#6b7280';
                 const active = selectedGantry === name ? 'active' : '';
                 const detail = state === 'running'
                     ? `Cycle ${s.current_cycle || 0} / ${s.target_cycles || '?'}`
+                    : state === 'unresponsive' ? 'Last seen: ' + s.last_update
                     : (s.profile || '');
                 return `<div class="overview-card ${active}" onclick="selectGantry('${name}')">
                     <div class="name">${s.gantry || name}</div>
@@ -354,27 +373,35 @@
                 const rows = text.trim().split('\n');
                 const headers = rows[0].split(',').map(h => h.trim());
 
-                const col = name => headers.indexOf(name);
-                let aTorqueIdx = col('A_torque (V)');
-                let trqUnit = 'V';
-                if (aTorqueIdx === -1) {
-                    aTorqueIdx = col('A_torque (DAC)');
-                    trqUnit = 'DAC';
-                }
-                if (aTorqueIdx === -1) { alert('Cannot find torque columns.'); return; }
+                // Flexible column finder: searches for keyword + preferred unit
+                const findCol = (keyword, preferredUnit, fallbackUnit) => {
+                    const kw = keyword.toLowerCase();
+                    // First try preferred unit
+                    let idx = headers.findIndex(h => h.toLowerCase().includes(kw) && h.includes(`(${preferredUnit})`));
+                    if (idx >= 0) return idx;
+                    // Try fallback unit
+                    if (fallbackUnit) {
+                        idx = headers.findIndex(h => h.toLowerCase().includes(kw) && h.includes(`(${fallbackUnit})`));
+                        if (idx >= 0) return idx;
+                    }
+                    // Try any match
+                    return headers.findIndex(h => h.toLowerCase().includes(kw));
+                };
 
-                const cTorqueIdx = col(`C_torque (${trqUnit})`) >= 0 ? col(`C_torque (${trqUnit})`) : col('C_torque (V)');
-                const bTorqueIdx = col(`B_torque (${trqUnit})`) >= 0 ? col(`B_torque (${trqUnit})`) : col('B_torque (V)');
-                let aPosIdx = col('A_position (m)');
-                if (aPosIdx === -1) aPosIdx = col('A_position (counts)');
-                let cPosIdx = col('C_position (m)');
-                if (cPosIdx === -1) cPosIdx = col('C_position (counts)');
-                let bPosIdx = col('B_position (m)');
-                if (bPosIdx === -1) bPosIdx = col('B_position (counts)');
-                let aErrIdx = col('A_pos_error (m)');
-                if (aErrIdx === -1) aErrIdx = col('A_pos_error (counts)');
-                let cErrIdx = col('C_pos_error (m)');
-                if (cErrIdx === -1) cErrIdx = col('C_pos_error (counts)');
+                const aPosIdx = findCol('a position', 'm', 'counts');
+                const cPosIdx = findCol('c position', 'm', 'counts');
+                const bPosIdx = findCol('b position', 'm', 'counts');
+                const aVelIdx = findCol('a velocity', 'm/s', 'counts/s');
+                const cVelIdx = findCol('c velocity', 'm/s', 'counts/s');
+                const bVelIdx = findCol('b velocity', 'm/s', 'counts/s');
+                const aTorqueIdx = findCol('a torque', 'V', 'DAC');
+                const cTorqueIdx = findCol('c torque', 'V', 'DAC');
+                const bTorqueIdx = findCol('b torque', 'V', 'DAC');
+                const aErrIdx = findCol('a pos error', 'm', 'counts');
+                const cErrIdx = findCol('c pos error', 'm', 'counts');
+                const bErrIdx = findCol('b pos error', 'm', 'counts');
+
+                if (aPosIdx === -1 && aTorqueIdx === -1) { alert('Cannot find data columns.'); return; }
                 const sampleIdx = headers.findIndex(h => h.includes('sample'));
                 const cycleIdx = col('cycle');
 
@@ -393,33 +420,34 @@
                 }
 
                 const cycles = Object.keys(snapshots).sort((a,b) => parseFloat(a) - parseFloat(b));
-                const d = {time:[], a_pos:[], c_pos:[], a_trq:[], c_trq:[], b_pos:[], b_trq:[], a_err:[], c_err:[], b_err:[], snapBoundaries:[], trqUnit};
+                const d = {time:[], a_pos:[], c_pos:[], a_vel:[], c_vel:[], a_trq:[], c_trq:[], b_pos:[], b_vel:[], b_trq:[], a_err:[], c_err:[], b_err:[], snapBoundaries:[]};
 
                 let timeOffset = 0;
                 cycles.forEach((cycle, snapIdx) => {
                     const snapRows = snapshots[cycle];
                     const snapDuration = snapRows.length * intervalMs / 1000;
                     if (snapIdx > 0) {
-                        d.time.push(null); d.a_pos.push(null); d.c_pos.push(null);
-                        d.a_trq.push(null); d.c_trq.push(null); d.b_pos.push(null);
+                        d.time.push(null); d.a_pos.push(null); d.c_pos.push(null); d.a_vel.push(null); d.c_vel.push(null);
+                        d.a_trq.push(null); d.c_trq.push(null); d.b_pos.push(null); d.b_vel.push(null);
                         d.b_trq.push(null); d.a_err.push(null); d.c_err.push(null); d.b_err.push(null);
                     }
                     d.snapBoundaries.push({time: timeOffset, cycle: cycle});
-                    const dacToV = trqUnit === 'DAC' ? 10.0 / 32767 : 1.0;
                     snapRows.forEach(c => {
+                        const getVal = (idx) => idx >= 0 ? parseFloat(c[idx]) || 0 : 0;
                         d.time.push(timeOffset + parseFloat(c[sampleIdx]) * intervalMs / 1000);
-                        d.a_pos.push(parseFloat(c[aPosIdx]));
-                        d.c_pos.push(parseFloat(c[cPosIdx]));
-                        d.a_trq.push(parseFloat(c[aTorqueIdx]) * dacToV);
-                        d.c_trq.push(parseFloat(c[cTorqueIdx]) * dacToV);
-                        d.b_pos.push(parseFloat(c[bPosIdx]));
-                        d.b_trq.push(parseFloat(c[bTorqueIdx]) * dacToV);
-                        d.a_err.push(parseFloat(c[aErrIdx]));
-                        d.c_err.push(parseFloat(c[cErrIdx]));
-                        d.b_err.push(0);
+                        d.a_pos.push(getVal(aPosIdx));
+                        d.c_pos.push(getVal(cPosIdx));
+                        d.a_vel.push(getVal(aVelIdx));
+                        d.c_vel.push(getVal(cVelIdx));
+                        d.a_trq.push(getVal(aTorqueIdx));
+                        d.c_trq.push(getVal(cTorqueIdx));
+                        d.b_pos.push(getVal(bPosIdx));
+                        d.b_vel.push(getVal(bVelIdx));
+                        d.b_trq.push(getVal(bTorqueIdx));
+                        d.a_err.push(getVal(aErrIdx));
+                        d.c_err.push(getVal(cErrIdx));
+                        d.b_err.push(getVal(bErrIdx));
                     });
-                    // Mark that data is now in V and m
-                    trqUnit = 'V';
                     timeOffset += snapDuration + 1; // 1s gap between snapshots
                 });
                 plotData = d;
