@@ -447,6 +447,10 @@
                 return;
             }
 
+            // Get selected range
+            const rangeStart = parseFloat(document.getElementById('range-start').value) || 0;
+            const rangeEnd = parseFloat(document.getElementById('range-end').value) || Infinity;
+
             // Torque limits in volts (at 2.3 A/V amp gain)
             // Continuous: 7.7A / 2.3 = 3.35V
             // Peak safe: 10A / 2.3 = 4.35V
@@ -460,17 +464,13 @@
             }));
             // X-axis range (auto-zoom to selection)
             const xAxisRange = {title:'Time (s)'};
-            if (rangeEnd > rangeStart) {
+            if (rangeEnd > rangeStart && rangeEnd !== Infinity) {
                 xAxisRange.range = [rangeStart, rangeEnd];
             }
             const annotations = (plotData.snapBoundaries || []).map(b => ({
                 x: b.time, y: 1, yref: 'paper', text: `c${b.cycle}`,
                 showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
             }));
-
-            // Get selected range
-            const rangeStart = parseFloat(document.getElementById('range-start').value) || 0;
-            const rangeEnd = parseFloat(document.getElementById('range-end').value) || Infinity;
 
             // Filter data to range for stats
             const inRange = (arr) => {
