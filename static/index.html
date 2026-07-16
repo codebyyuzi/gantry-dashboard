@@ -123,6 +123,7 @@
                         <label class="ch-a-err"><input type="checkbox" name="x-ch" value="a_err" onchange="updatePlots()"><span>A Pos Error</span></label>
                         <label class="ch-c-err"><input type="checkbox" name="x-ch" value="c_err" onchange="updatePlots()"><span>C Pos Error</span></label>
                     </div>
+                    <div id="x-stats" style="font-size:11px; color:#333; padding:2px 0;"></div>
                     <div id="plot-x"></div>
                 </div>
                 <div class="plot-panel">
@@ -133,6 +134,7 @@
                         <label class="ch-b-trq"><input type="checkbox" name="y-ch" value="b_trq" onchange="updatePlots()"><span>B Torque</span></label>
                         <label class="ch-b-err"><input type="checkbox" name="y-ch" value="b_err" onchange="updatePlots()"><span>B Pos Error</span></label>
                     </div>
+                    <div id="y-stats" style="font-size:11px; color:#333; padding:2px 0;"></div>
                     <div id="plot-y"></div>
                 </div>
             </div>
@@ -175,7 +177,7 @@
             a_trq: 'A Torque (V)', c_trq: 'C Torque (V)',
             a_err: 'A Pos Error (m)', c_err: 'C Pos Error (m)',
             b_pos: 'B Position (m)', b_vel: 'B Velocity (m/s)',
-            b_trq: 'B Torque (V)', b_err: 'B Pos Error'
+            b_trq: 'B Torque (V)', b_err: 'B Pos Error (m)'
         };
 
         async function fetchAllStatus() {
@@ -569,10 +571,10 @@
             });
             if (xTraces.length > 0) {
                 const layout = {...plotLayout, xaxis: xAxisRange, shapes: xShapes, annotations: xAnnotations};
-                if (xHasTorque) {
-                    layout.title = {text: `Peak: A=${peakA.toFixed(2)}V, C=${peakC.toFixed(2)}V  |  RMS: A=${rmsA.toFixed(2)}V, C=${rmsC.toFixed(2)}V`, font:{size:10}};
-                }
                 Plotly.newPlot('plot-x', xTraces, layout);
+                document.getElementById('x-stats').textContent = xHasTorque
+                    ? `Peak: A=${peakA.toFixed(2)}V, C=${peakC.toFixed(2)}V  |  RMS: A=${rmsA.toFixed(2)}V, C=${rmsC.toFixed(2)}V`
+                    : '';
             } else {
                 document.getElementById('plot-x').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
@@ -608,10 +610,10 @@
             });
             if (yTraces.length > 0) {
                 const layout = {...plotLayout, xaxis: xAxisRange, shapes: yShapes, annotations: yAnnotations};
-                if (yHasTorque) {
-                    layout.title = {text: `Peak: B=${peakB.toFixed(2)}V  |  RMS: B=${rmsB.toFixed(2)}V`, font:{size:10}};
-                }
                 Plotly.newPlot('plot-y', yTraces, layout);
+                document.getElementById('y-stats').textContent = yHasTorque
+                    ? `Peak: B=${peakB.toFixed(2)}V  |  RMS: B=${rmsB.toFixed(2)}V`
+                    : '';
             } else {
                 document.getElementById('plot-y').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
