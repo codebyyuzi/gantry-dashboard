@@ -115,8 +115,8 @@ def request_upload():
     req_type = data.get("type", "motor_data")
     if not gantry:
         return jsonify({"error": "Missing 'gantry' field"}), 400
-    if req_type not in ("motor_data", "controller_log", "cycle_log", "profile"):
-        return jsonify({"error": "Invalid type. Use: motor_data, controller_log, cycle_log, profile"}), 400
+    if req_type not in ("motor_data", "controller_log", "cycle_log", "profile", "force_snapshot"):
+        return jsonify({"error": "Invalid type"}), 400
     req_data = {
         "requested_at": datetime.now().isoformat(),
         "type": req_type,
