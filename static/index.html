@@ -94,6 +94,14 @@
             <select id="file-select" onchange="loadData()" style="margin-bottom:12px;">
                 <option value="">Select a recording...</option>
             </select>
+            <div id="range-controls" style="display:none; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <span style="font-size:12px;">Range (s):</span>
+                <input type="number" id="range-start" step="0.1" value="0" style="width:70px; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:12px;" onchange="updatePlots()">
+                <span style="font-size:12px;">to</span>
+                <input type="number" id="range-end" step="0.1" value="0" style="width:70px; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:12px;" onchange="updatePlots()">
+                <button class="btn" style="padding:4px 10px; font-size:11px; background:#e5e7eb;" onclick="resetRange()">Reset</button>
+                <span id="range-stats" style="font-size:11px; color:#666;"></span>
+            </div>
 
             <div class="plot-area">
                 <div class="plot-panel">
@@ -412,8 +420,22 @@
                     timeOffset += snapDuration + 1; // 1s gap between snapshots
                 });
                 plotData = d;
+                // Set range controls to full extent
+                const validTimes = d.time.filter(t => t !== null);
+                const maxTime = validTimes.length > 0 ? validTimes[validTimes.length-1] : 0;
+                document.getElementById('range-start').value = 0;
+                document.getElementById('range-end').value = maxTime.toFixed(1);
+                document.getElementById('range-controls').style.display = 'flex';
                 updatePlots();
             } catch(e) { console.error(e); }
+        }
+
+        function resetRange() {
+            if (!plotData) return;
+            const validTimes = plotData.time.filter(t => t !== null);
+            document.getElementById('range-start').value = 0;
+            document.getElementById('range-end').value = validTimes[validTimes.length-1].toFixed(1);
+            updatePlots();
         }
 
         function updatePlots() {
@@ -436,20 +458,41 @@
                 type: 'line', x0: b.time, x1: b.time, y0: 0, y1: 1, yref: 'paper',
                 line: {color: '#ccc', width: 1, dash: 'dot'}
             }));
+            // X-axis range (auto-zoom to selection)
+            const xAxisRange = {title:'Time (s)', range:[rangeStart, rangeEnd]};
             const annotations = (plotData.snapBoundaries || []).map(b => ({
                 x: b.time, y: 1, yref: 'paper', text: `c${b.cycle}`,
                 showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
             }));
 
-            // Compute peak and RMS torques (always in V now)
-            const valid = arr => arr.filter(v => v !== null && !isNaN(v));
-            const rms = arr => { const v = valid(arr); return Math.sqrt(v.reduce((s,x) => s + x*x, 0) / v.length); };
-            const peakA = Math.max(...valid(plotData.a_trq).map(Math.abs));
-            const peakC = Math.max(...valid(plotData.c_trq).map(Math.abs));
-            const peakB = Math.max(...valid(plotData.b_trq).map(Math.abs));
+            // Get selected range
+            const rangeStart = parseFloat(document.getElementById('range-start').value) || 0;
+            const rangeEnd = parseFloat(document.getElementById('range-end').value) || Infinity;
+
+            // Filter data to range for stats
+            const inRange = (arr) => {
+                const result = [];
+                for (let i = 0; i < plotData.time.length; i++) {
+                    const t = plotData.time[i];
+                    if (t !== null && t >= rangeStart && t <= rangeEnd && arr[i] !== null && !isNaN(arr[i])) {
+                        result.push(arr[i]);
+                    }
+                }
+                return result;
+            };
+            const rms = arr => { const v = inRange(arr); return v.length > 0 ? Math.sqrt(v.reduce((s,x) => s + x*x, 0) / v.length) : 0; };
+            const peak = arr => { const v = inRange(arr); return v.length > 0 ? Math.max(...v.map(Math.abs)) : 0; };
+
+            const peakA = peak(plotData.a_trq);
+            const peakC = peak(plotData.c_trq);
+            const peakB = peak(plotData.b_trq);
             const rmsA = rms(plotData.a_trq);
             const rmsC = rms(plotData.c_trq);
             const rmsB = rms(plotData.b_trq);
+
+            // Update range stats display
+            document.getElementById('range-stats').textContent =
+                `(${(rangeEnd - rangeStart).toFixed(1)}s selected)`;
 
             // Add torque limit shapes for X plot (if torque channels visible)
             const xChecked = [...document.querySelectorAll('#x-channels input:checked')].map(el => el.value);
@@ -482,7 +525,7 @@
                 }
             });
             if (xTraces.length > 0) {
-                const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: xShapes, annotations: xAnnotations};
+                const layout = {...plotLayout, xaxis: xAxisRange, shapes: xShapes, annotations: xAnnotations};
                 if (xHasTorque) {
                     layout.title = {text: `Peak: A=${peakA.toFixed(2)}V, C=${peakC.toFixed(2)}V  |  RMS: A=${rmsA.toFixed(2)}V, C=${rmsC.toFixed(2)}V`, font:{size:10}};
                 }
@@ -521,7 +564,7 @@
                 }
             });
             if (yTraces.length > 0) {
-                const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: yShapes, annotations: yAnnotations};
+                const layout = {...plotLayout, xaxis: xAxisRange, shapes: yShapes, annotations: yAnnotations};
                 if (yHasTorque) {
                     layout.title = {text: `Peak: B=${peakB.toFixed(2)}V  |  RMS: B=${rmsB.toFixed(2)}V`, font:{size:10}};
                 }
