@@ -280,15 +280,51 @@
             btns.forEach(b => b.disabled = true);
             msg.textContent = `Requesting ${type.replace(/_/g, ' ')}...`;
             try {
+                // Get file count before request
+                const beforeResp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
+                const beforeFiles = await beforeResp.json();
+                const beforeCount = beforeFiles.length;
+
                 await fetch('/api/request_upload', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({gantry: selectedGantry, type: type})
                 });
-                msg.textContent = 'Requested. Waiting for gantry PC (~30s)...';
-                setTimeout(() => { btns.forEach(b => b.disabled = false); msg.textContent = ''; fetchFiles(); }, 35000);
+                msg.textContent = 'Requested. Waiting for gantry PC...';
+
+                // Poll for completion (check every 5s for up to 40s)
+                let attempts = 0;
+                const checkInterval = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const checkResp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
+                        const checkFiles = await checkResp.json();
+                        if (checkFiles.length > beforeCount) {
+                            clearInterval(checkInterval);
+                            btns.forEach(b => b.disabled = false);
+                            msg.textContent = '✓ File received successfully.';
+                            msg.style.color = '#16a34a';
+                            fetchFiles();
+                            setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 5000);
+                        } else if (attempts >= 8) {
+                            clearInterval(checkInterval);
+                            btns.forEach(b => b.disabled = false);
+                            msg.textContent = '✗ No response from gantry PC. Is it connected?';
+                            msg.style.color = '#dc2626';
+                            setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 8000);
+                        }
+                    } catch(e) {
+                        if (attempts >= 8) {
+                            clearInterval(checkInterval);
+                            btns.forEach(b => b.disabled = false);
+                            msg.textContent = '✗ Check failed.';
+                            msg.style.color = '#dc2626';
+                        }
+                    }
+                }, 5000);
             } catch(e) {
-                msg.textContent = 'Failed to send request.';
+                msg.textContent = '✗ Failed to send request.';
+                msg.style.color = '#dc2626';
                 btns.forEach(b => b.disabled = false);
             }
         }
