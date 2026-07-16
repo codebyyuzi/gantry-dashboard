@@ -94,7 +94,7 @@
             <select id="file-select" onchange="loadData()" style="margin-bottom:12px;">
                 <option value="">Select a recording...</option>
             </select>
-            <div id="range-controls" style="display:none; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div id="range-controls" style="display:none; margin-bottom:12px; align-items:center; gap:10px; flex-wrap:wrap;">
                 <span style="font-size:12px;">Range (s):</span>
                 <input type="number" id="range-start" step="0.1" value="0" style="width:70px; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:12px;" onchange="updatePlots()">
                 <span style="font-size:12px;">to</span>
@@ -459,7 +459,10 @@
                 line: {color: '#ccc', width: 1, dash: 'dot'}
             }));
             // X-axis range (auto-zoom to selection)
-            const xAxisRange = {title:'Time (s)', range:[rangeStart, rangeEnd]};
+            const xAxisRange = {title:'Time (s)'};
+            if (rangeEnd > rangeStart) {
+                xAxisRange.range = [rangeStart, rangeEnd];
+            }
             const annotations = (plotData.snapBoundaries || []).map(b => ({
                 x: b.time, y: 1, yref: 'paper', text: `c${b.cycle}`,
                 showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
