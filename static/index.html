@@ -280,10 +280,12 @@
             btns.forEach(b => b.disabled = true);
             msg.textContent = `Requesting ${type.replace(/_/g, ' ')}...`;
             try {
-                // Get file count before request
+                // Snapshot file state before request
                 const beforeResp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
                 const beforeFiles = await beforeResp.json();
+                const beforeNames = new Set(beforeFiles.map(f => f.name));
                 const beforeCount = beforeFiles.length;
+                const beforeTop = beforeFiles.length > 0 ? beforeFiles[0].name : '';
 
                 await fetch('/api/request_upload', {
                     method: 'POST',
@@ -299,7 +301,10 @@
                     try {
                         const checkResp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
                         const checkFiles = await checkResp.json();
-                        if (checkFiles.length > beforeCount) {
+                        const hasNewFile = checkFiles.length > beforeCount ||
+                            checkFiles.some(f => !beforeNames.has(f.name)) ||
+                            (checkFiles.length > 0 && checkFiles[0].name !== beforeTop);
+                        if (hasNewFile) {
                             clearInterval(checkInterval);
                             btns.forEach(b => b.disabled = false);
                             msg.textContent = '✓ File received successfully.';
