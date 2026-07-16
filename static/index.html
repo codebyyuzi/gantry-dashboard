@@ -125,7 +125,17 @@
         </div>
 
         <div class="section">
-            <h2>Recordings</h2>
+            <h2>Logs</h2>
+            <select id="log-select" onchange="loadLog()" style="margin-bottom:12px;">
+                <option value="">Select a log file...</option>
+            </select>
+            <div id="log-viewer" style="background:white; border-radius:8px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); max-height:400px; overflow:auto; display:none;">
+                <pre id="log-content" style="font-size:12px; margin:0; white-space:pre-wrap; word-wrap:break-word;"></pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>All Files</h2>
             <div class="files" id="file-list"></div>
         </div>
     </div>
@@ -185,6 +195,8 @@
             document.getElementById('detail-title').textContent = allStatus[name]?.gantry || name;
             updateDetail(allStatus[name]);
             document.getElementById('file-select').value = '';
+            document.getElementById('log-select').value = '';
+            document.getElementById('log-viewer').style.display = 'none';
             plotData = null;
             document.getElementById('plot-x').innerHTML = '';
             document.getElementById('plot-y').innerHTML = '';
@@ -216,17 +228,49 @@
             try {
                 const resp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
                 const files = await resp.json();
-                const select = document.getElementById('file-select');
+                const csvSelect = document.getElementById('file-select');
+                const logSelect = document.getElementById('log-select');
                 const list = document.getElementById('file-list');
                 const gantryPath = encodeURIComponent(selectedGantry);
-                select.innerHTML = '<option value="">Select a recording...</option>';
+
+                csvSelect.innerHTML = '<option value="">Select a recording...</option>';
+                logSelect.innerHTML = '<option value="">Select a log file...</option>';
                 list.innerHTML = '';
+
                 files.forEach(f => {
-                    select.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
+                    const isLog = f.name.endsWith('.log') || f.name.endsWith('.txt');
+                    const isCsv = f.name.endsWith('.csv');
+                    if (isCsv) {
+                        csvSelect.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
+                    }
+                    if (isLog) {
+                        logSelect.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
+                    }
                     list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span><a href="/api/files/${gantryPath}/${f.name}">Download</a></div>`;
                 });
-                if (files.length === 0) list.innerHTML = '<div style="color:#999;padding:8px 0">No recordings yet.</div>';
+                if (files.length === 0) list.innerHTML = '<div style="color:#999;padding:8px 0">No files yet.</div>';
             } catch(e) {}
+        }
+
+        async function loadLog() {
+            if (!selectedGantry) return;
+            const filename = document.getElementById('log-select').value;
+            const viewer = document.getElementById('log-viewer');
+            const content = document.getElementById('log-content');
+            if (!filename) {
+                viewer.style.display = 'none';
+                return;
+            }
+            try {
+                const gantryPath = encodeURIComponent(selectedGantry);
+                const resp = await fetch(`/api/files/${gantryPath}/${filename}`);
+                const text = await resp.text();
+                content.textContent = text;
+                viewer.style.display = 'block';
+            } catch(e) {
+                content.textContent = 'Failed to load file.';
+                viewer.style.display = 'block';
+            }
         }
 
         async function requestUpload(type) {
