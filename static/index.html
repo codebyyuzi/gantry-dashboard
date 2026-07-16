@@ -341,16 +341,26 @@
                 const headers = rows[0].split(',').map(h => h.trim());
 
                 const col = name => headers.indexOf(name);
-                const aTorqueIdx = col('A_torque (V)');
-                if (aTorqueIdx === -1) { alert('Old format CSV — use plot_motor_data.py'); return; }
+                let aTorqueIdx = col('A_torque (DAC)');
+                let trqUnit = 'DAC';
+                if (aTorqueIdx === -1) {
+                    aTorqueIdx = col('A_torque (V)');
+                    trqUnit = 'V';
+                }
+                if (aTorqueIdx === -1) { alert('Cannot find torque columns.'); return; }
 
-                const cTorqueIdx = col('C_torque (V)');
-                const bTorqueIdx = col('B_torque (V)');
-                const aPosIdx = col('A_position (m)');
-                const cPosIdx = col('C_position (m)');
-                const bPosIdx = col('B_position (m)');
-                const aErrIdx = col('A_pos_error (m)');
-                const cErrIdx = col('C_pos_error (m)');
+                const cTorqueIdx = col(`C_torque (${trqUnit})`) >= 0 ? col(`C_torque (${trqUnit})`) : col('C_torque (V)');
+                const bTorqueIdx = col(`B_torque (${trqUnit})`) >= 0 ? col(`B_torque (${trqUnit})`) : col('B_torque (V)');
+                let aPosIdx = col('A_position (counts)');
+                if (aPosIdx === -1) aPosIdx = col('A_position (m)');
+                let cPosIdx = col('C_position (counts)');
+                if (cPosIdx === -1) cPosIdx = col('C_position (m)');
+                let bPosIdx = col('B_position (counts)');
+                if (bPosIdx === -1) bPosIdx = col('B_position (m)');
+                let aErrIdx = col('A_pos_error (counts)');
+                if (aErrIdx === -1) aErrIdx = col('A_pos_error (m)');
+                let cErrIdx = col('C_pos_error (counts)');
+                if (cErrIdx === -1) cErrIdx = col('C_pos_error (m)');
                 const sampleIdx = headers.findIndex(h => h.includes('sample'));
                 const cycleIdx = col('cycle');
 
@@ -369,7 +379,7 @@
                 }
 
                 const cycles = Object.keys(snapshots).sort((a,b) => parseFloat(a) - parseFloat(b));
-                const d = {time:[], a_pos:[], c_pos:[], a_trq:[], c_trq:[], b_pos:[], b_trq:[], a_err:[], c_err:[], b_err:[], snapBoundaries:[]};
+                const d = {time:[], a_pos:[], c_pos:[], a_trq:[], c_trq:[], b_pos:[], b_trq:[], a_err:[], c_err:[], b_err:[], snapBoundaries:[], trqUnit};
 
                 let timeOffset = 0;
                 cycles.forEach((cycle, snapIdx) => {
@@ -409,6 +419,12 @@
                 return;
             }
 
+            // Torque limits (at 2.3 A/V amp gain)
+            // Continuous: 7.7A / 2.3 = 3.35V = 10972 DAC
+            // Peak safe: 10A / 2.3 = 4.35V = 14246 DAC
+            const contLimit = plotData.trqUnit === 'DAC' ? 10972 : 3.35;
+            const peakLimit = plotData.trqUnit === 'DAC' ? 14246 : 4.35;
+
             // Snapshot boundary lines
             const shapes = (plotData.snapBoundaries || []).slice(1).map(b => ({
                 type: 'line', x0: b.time, x1: b.time, y0: 0, y1: 1, yref: 'paper',
@@ -419,8 +435,34 @@
                 showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
             }));
 
-            // X-axis plot
+            // Compute peak torques
+            const valid = arr => arr.filter(v => v !== null && !isNaN(v));
+            const peakA = Math.max(...valid(plotData.a_trq).map(Math.abs));
+            const peakC = Math.max(...valid(plotData.c_trq).map(Math.abs));
+            const peakB = Math.max(...valid(plotData.b_trq).map(Math.abs));
+            const unit = plotData.trqUnit || 'DAC';
+
+            // Add torque limit shapes for X plot (if torque channels visible)
             const xChecked = [...document.querySelectorAll('#x-channels input:checked')].map(el => el.value);
+            const xHasTorque = xChecked.some(ch => ch.includes('trq'));
+            const xShapes = [...shapes];
+            if (xHasTorque) {
+                xShapes.push(
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:contLimit, y1:contLimit, line:{color:'#f59e0b', width:1, dash:'dash'}},
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:-contLimit, y1:-contLimit, line:{color:'#f59e0b', width:1, dash:'dash'}},
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:peakLimit, y1:peakLimit, line:{color:'#dc2626', width:1, dash:'dash'}},
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:-peakLimit, y1:-peakLimit, line:{color:'#dc2626', width:1, dash:'dash'}}
+                );
+            }
+            const xAnnotations = [...annotations];
+            if (xHasTorque) {
+                xAnnotations.push(
+                    {x:1, xref:'paper', y:contLimit, text:`Cont ±${contLimit}`, showarrow:false, font:{size:8, color:'#f59e0b'}, xanchor:'right'},
+                    {x:1, xref:'paper', y:peakLimit, text:`Peak ±${peakLimit}`, showarrow:false, font:{size:8, color:'#dc2626'}, xanchor:'right'}
+                );
+            }
+
+            // X-axis plot
             const xTraces = [];
             xChecked.forEach(ch => {
                 if (plotData[ch]) {
@@ -431,13 +473,35 @@
                 }
             });
             if (xTraces.length > 0) {
-                Plotly.newPlot('plot-x', xTraces, {...plotLayout, xaxis:{title:'Time (s)'}, shapes, annotations});
+                const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: xShapes, annotations: xAnnotations};
+                if (xHasTorque) {
+                    layout.title = {text: `Peak torque: A=${peakA.toFixed(0)} ${unit}, C=${peakC.toFixed(0)} ${unit}`, font:{size:10}};
+                }
+                Plotly.newPlot('plot-x', xTraces, layout);
             } else {
                 document.getElementById('plot-x').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
 
             // Y-axis plot
             const yChecked = [...document.querySelectorAll('#y-channels input:checked')].map(el => el.value);
+            const yHasTorque = yChecked.some(ch => ch.includes('trq'));
+            const yShapes = [...shapes];
+            if (yHasTorque) {
+                yShapes.push(
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:contLimit, y1:contLimit, line:{color:'#f59e0b', width:1, dash:'dash'}},
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:-contLimit, y1:-contLimit, line:{color:'#f59e0b', width:1, dash:'dash'}},
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:peakLimit, y1:peakLimit, line:{color:'#dc2626', width:1, dash:'dash'}},
+                    {type:'line', x0:0, x1:1, xref:'paper', y0:-peakLimit, y1:-peakLimit, line:{color:'#dc2626', width:1, dash:'dash'}}
+                );
+            }
+            const yAnnotations = [...annotations];
+            if (yHasTorque) {
+                yAnnotations.push(
+                    {x:1, xref:'paper', y:contLimit, text:`Cont ±${contLimit}`, showarrow:false, font:{size:8, color:'#f59e0b'}, xanchor:'right'},
+                    {x:1, xref:'paper', y:peakLimit, text:`Peak ±${peakLimit}`, showarrow:false, font:{size:8, color:'#dc2626'}, xanchor:'right'}
+                );
+            }
+
             const yTraces = [];
             yChecked.forEach(ch => {
                 if (plotData[ch]) {
@@ -448,7 +512,11 @@
                 }
             });
             if (yTraces.length > 0) {
-                Plotly.newPlot('plot-y', yTraces, {...plotLayout, xaxis:{title:'Time (s)'}, shapes, annotations});
+                const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: yShapes, annotations: yAnnotations};
+                if (yHasTorque) {
+                    layout.title = {text: `Peak torque: B=${peakB.toFixed(0)} ${unit}`, font:{size:10}};
+                }
+                Plotly.newPlot('plot-y', yTraces, layout);
             } else {
                 document.getElementById('plot-y').innerHTML = '<div style="color:#999;text-align:center;padding:40px">Select channels to plot</div>';
             }
@@ -460,8 +528,8 @@
                 name: 'XY Path', mode: 'lines', line: {width: 1, color: '#7c3aed'}
             }], {
                 ...plotLayout, height: 400,
-                xaxis: {title: 'Y Position - B (m)', scaleanchor: 'y'},
-                yaxis: {title: 'X Position - A (m)'}
+                xaxis: {title: 'Y Position - B', scaleanchor: 'y'},
+                yaxis: {title: 'X Position - A'}
             });
         }
 
