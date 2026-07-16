@@ -391,14 +391,15 @@
                         d.b_trq.push(null); d.a_err.push(null); d.c_err.push(null); d.b_err.push(null);
                     }
                     d.snapBoundaries.push({time: timeOffset, cycle: cycle});
+                    const dacToV = trqUnit === 'DAC' ? 10.0 / 32767 : 1.0;
                     snapRows.forEach(c => {
                         d.time.push(timeOffset + parseFloat(c[sampleIdx]) * intervalMs / 1000);
                         d.a_pos.push(parseFloat(c[aPosIdx]));
                         d.c_pos.push(parseFloat(c[cPosIdx]));
-                        d.a_trq.push(parseFloat(c[aTorqueIdx]));
-                        d.c_trq.push(parseFloat(c[cTorqueIdx]));
+                        d.a_trq.push(parseFloat(c[aTorqueIdx]) * dacToV);
+                        d.c_trq.push(parseFloat(c[cTorqueIdx]) * dacToV);
                         d.b_pos.push(parseFloat(c[bPosIdx]));
-                        d.b_trq.push(parseFloat(c[bTorqueIdx]));
+                        d.b_trq.push(parseFloat(c[bTorqueIdx]) * dacToV);
                         d.a_err.push(parseFloat(c[aErrIdx]));
                         d.c_err.push(parseFloat(c[cErrIdx]));
                         d.b_err.push(0);
@@ -419,11 +420,11 @@
                 return;
             }
 
-            // Torque limits (at 2.3 A/V amp gain)
-            // Continuous: 7.7A / 2.3 = 3.35V = 10972 DAC
-            // Peak safe: 10A / 2.3 = 4.35V = 14246 DAC
-            const contLimit = plotData.trqUnit === 'DAC' ? 10972 : 3.35;
-            const peakLimit = plotData.trqUnit === 'DAC' ? 14246 : 4.35;
+            // Torque limits in volts (at 2.3 A/V amp gain)
+            // Continuous: 7.7A / 2.3 = 3.35V
+            // Peak safe: 10A / 2.3 = 4.35V
+            const contLimit = 3.35;
+            const peakLimit = 4.35;
 
             // Snapshot boundary lines
             const shapes = (plotData.snapBoundaries || []).slice(1).map(b => ({
@@ -435,12 +436,11 @@
                 showarrow: false, font: {size: 9, color: '#999'}, yanchor: 'bottom'
             }));
 
-            // Compute peak torques
+            // Compute peak torques (always in V now)
             const valid = arr => arr.filter(v => v !== null && !isNaN(v));
             const peakA = Math.max(...valid(plotData.a_trq).map(Math.abs));
             const peakC = Math.max(...valid(plotData.c_trq).map(Math.abs));
             const peakB = Math.max(...valid(plotData.b_trq).map(Math.abs));
-            const unit = plotData.trqUnit || 'DAC';
 
             // Add torque limit shapes for X plot (if torque channels visible)
             const xChecked = [...document.querySelectorAll('#x-channels input:checked')].map(el => el.value);
@@ -457,8 +457,8 @@
             const xAnnotations = [...annotations];
             if (xHasTorque) {
                 xAnnotations.push(
-                    {x:1, xref:'paper', y:contLimit, text:`Cont ±${contLimit}`, showarrow:false, font:{size:8, color:'#f59e0b'}, xanchor:'right'},
-                    {x:1, xref:'paper', y:peakLimit, text:`Peak ±${peakLimit}`, showarrow:false, font:{size:8, color:'#dc2626'}, xanchor:'right'}
+                    {x:1, xref:'paper', y:contLimit, text:`Cont ±${contLimit}V`, showarrow:false, font:{size:8, color:'#f59e0b'}, xanchor:'right'},
+                    {x:1, xref:'paper', y:peakLimit, text:`Peak ±${peakLimit}V`, showarrow:false, font:{size:8, color:'#dc2626'}, xanchor:'right'}
                 );
             }
 
@@ -475,7 +475,7 @@
             if (xTraces.length > 0) {
                 const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: xShapes, annotations: xAnnotations};
                 if (xHasTorque) {
-                    layout.title = {text: `Peak torque: A=${peakA.toFixed(0)} ${unit}, C=${peakC.toFixed(0)} ${unit}`, font:{size:10}};
+                    layout.title = {text: `Peak torque: A=${peakA.toFixed(2)}V, C=${peakC.toFixed(2)}V`, font:{size:10}};
                 }
                 Plotly.newPlot('plot-x', xTraces, layout);
             } else {
@@ -497,8 +497,8 @@
             const yAnnotations = [...annotations];
             if (yHasTorque) {
                 yAnnotations.push(
-                    {x:1, xref:'paper', y:contLimit, text:`Cont ±${contLimit}`, showarrow:false, font:{size:8, color:'#f59e0b'}, xanchor:'right'},
-                    {x:1, xref:'paper', y:peakLimit, text:`Peak ±${peakLimit}`, showarrow:false, font:{size:8, color:'#dc2626'}, xanchor:'right'}
+                    {x:1, xref:'paper', y:contLimit, text:`Cont ±${contLimit}V`, showarrow:false, font:{size:8, color:'#f59e0b'}, xanchor:'right'},
+                    {x:1, xref:'paper', y:peakLimit, text:`Peak ±${peakLimit}V`, showarrow:false, font:{size:8, color:'#dc2626'}, xanchor:'right'}
                 );
             }
 
@@ -514,7 +514,7 @@
             if (yTraces.length > 0) {
                 const layout = {...plotLayout, xaxis:{title:'Time (s)'}, shapes: yShapes, annotations: yAnnotations};
                 if (yHasTorque) {
-                    layout.title = {text: `Peak torque: B=${peakB.toFixed(0)} ${unit}`, font:{size:10}};
+                    layout.title = {text: `Peak torque: B=${peakB.toFixed(2)}V`, font:{size:10}};
                 }
                 Plotly.newPlot('plot-y', yTraces, layout);
             } else {
