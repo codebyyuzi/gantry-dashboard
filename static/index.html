@@ -84,6 +84,7 @@
             <div class="card"><div class="label">Current Cycle</div><div class="value" id="cycle">—</div></div>
             <div class="card"><div class="label">Target Cycles</div><div class="value" id="target">—</div></div>
             <div class="card"><div class="label">Progress</div><div class="value" id="progress">—</div></div>
+            <div class="card"><div class="label">Cycle Time</div><div class="value" id="cycle-time">—</div></div>
             <div class="card"><div class="label">Profile</div><div class="value" id="profile">—</div></div>
         </div>
         <div class="timestamp" id="last-update"></div>
@@ -247,6 +248,8 @@
             document.getElementById('target').textContent = d.target_cycles ?? '—';
             document.getElementById('progress').textContent =
                 d.progress_percent != null ? Math.round(d.progress_percent) + '%' : '—';
+            document.getElementById('cycle-time').textContent =
+                d.cycle_time ? d.cycle_time.toFixed(3) + 's' : '—';
             document.getElementById('profile').textContent = d.profile || '—';
             if (d.last_update) document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
             const errBanner = document.getElementById('error-banner');
