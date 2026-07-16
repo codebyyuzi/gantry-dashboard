@@ -373,19 +373,20 @@
                 const rows = text.trim().split('\n');
                 const headers = rows[0].split(',').map(h => h.trim());
 
-                // Flexible column finder: searches for keyword + preferred unit
+                // Flexible column finder: normalizes spaces/underscores, searches keyword + preferred unit
+                const normalize = s => s.toLowerCase().replace(/_/g, ' ');
                 const findCol = (keyword, preferredUnit, fallbackUnit) => {
                     const kw = keyword.toLowerCase();
                     // First try preferred unit
-                    let idx = headers.findIndex(h => h.toLowerCase().includes(kw) && h.includes(`(${preferredUnit})`));
+                    let idx = headers.findIndex(h => normalize(h).includes(kw) && h.includes(`(${preferredUnit})`));
                     if (idx >= 0) return idx;
                     // Try fallback unit
                     if (fallbackUnit) {
-                        idx = headers.findIndex(h => h.toLowerCase().includes(kw) && h.includes(`(${fallbackUnit})`));
+                        idx = headers.findIndex(h => normalize(h).includes(kw) && h.includes(`(${fallbackUnit})`));
                         if (idx >= 0) return idx;
                     }
                     // Try any match
-                    return headers.findIndex(h => h.toLowerCase().includes(kw));
+                    return headers.findIndex(h => normalize(h).includes(kw));
                 };
 
                 const aPosIdx = findCol('a position', 'm', 'counts');
@@ -401,7 +402,15 @@
                 const cErrIdx = findCol('c pos error', 'm', 'counts');
                 const bErrIdx = findCol('b pos error', 'm', 'counts');
 
-                if (aPosIdx === -1 && aTorqueIdx === -1) { alert('Cannot find data columns.'); return; }
+                const allIdx = [aPosIdx, cPosIdx, bPosIdx, aVelIdx, cVelIdx, bVelIdx, aTorqueIdx, cTorqueIdx, bTorqueIdx, aErrIdx, cErrIdx, bErrIdx];
+                if (allIdx.every(i => i === -1)) {
+                    plotData = null;
+                    document.getElementById('plot-x').innerHTML = '<div style="color:#999;text-align:center;padding:40px">No plottable data in this file</div>';
+                    document.getElementById('plot-y').innerHTML = '';
+                    document.getElementById('plot-xy').innerHTML = '';
+                    document.getElementById('xy-panel').style.display = 'none';
+                    return;
+                }
                 const sampleIdx = headers.findIndex(h => h.includes('sample'));
                 const cycleIdx = col('cycle');
 
