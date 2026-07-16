@@ -187,9 +187,8 @@ def list_files():
     files = []
     if os.path.exists(dest_dir):
         for f in sorted(os.listdir(dest_dir), reverse=True):
-            if f.endswith(".csv"):
-                size_kb = os.path.getsize(os.path.join(dest_dir, f)) / 1024
-                files.append({"name": f, "size_kb": round(size_kb, 1)})
+            size_kb = os.path.getsize(os.path.join(dest_dir, f)) / 1024
+            files.append({"name": f, "size_kb": round(size_kb, 1)})
     return jsonify(files)
 
 
