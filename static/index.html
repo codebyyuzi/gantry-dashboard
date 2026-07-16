@@ -221,6 +221,8 @@
             }).join('');
         }
 
+        let activeCheckInterval = null;
+
         function selectGantry(name) {
             selectedGantry = name;
             document.getElementById('detail-section').style.display = 'block';
@@ -234,6 +236,11 @@
             document.getElementById('plot-y').innerHTML = '';
             document.getElementById('plot-xy').innerHTML = '';
             document.getElementById('xy-panel').style.display = 'none';
+            // Reset request state
+            if (activeCheckInterval) { clearInterval(activeCheckInterval); activeCheckInterval = null; }
+            document.querySelectorAll('.btn-primary').forEach(b => b.disabled = false);
+            const msg = document.getElementById('request-msg');
+            msg.textContent = ''; msg.style.color = '';
             fetchFiles();
             renderOverview();
         }
@@ -330,6 +337,7 @@
 
                 // Poll for completion (check every 5s for up to 40s)
                 let attempts = 0;
+                if (activeCheckInterval) clearInterval(activeCheckInterval);
                 const checkInterval = setInterval(async () => {
                     attempts++;
                     try {
@@ -339,14 +347,14 @@
                             checkFiles.some(f => !beforeNames.has(f.name)) ||
                             (checkFiles.length > 0 && checkFiles[0].name !== beforeTop);
                         if (hasNewFile) {
-                            clearInterval(checkInterval);
+                            clearInterval(checkInterval); activeCheckInterval = null;
                             btns.forEach(b => b.disabled = false);
                             msg.textContent = '✓ File received successfully.';
                             msg.style.color = '#16a34a';
                             fetchFiles();
                             setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 5000);
                         } else if (attempts >= 8) {
-                            clearInterval(checkInterval);
+                            clearInterval(checkInterval); activeCheckInterval = null;
                             btns.forEach(b => b.disabled = false);
                             msg.textContent = '✗ No response from gantry PC.';
                             msg.style.color = '#dc2626';
@@ -354,13 +362,14 @@
                         }
                     } catch(e) {
                         if (attempts >= 8) {
-                            clearInterval(checkInterval);
+                            clearInterval(checkInterval); activeCheckInterval = null;
                             btns.forEach(b => b.disabled = false);
                             msg.textContent = '✗ Check failed.';
                             msg.style.color = '#dc2626';
                         }
                     }
                 }, 5000);
+                activeCheckInterval = checkInterval;
             } catch(e) {
                 msg.textContent = '✗ Failed to send request.';
                 msg.style.color = '#dc2626';
