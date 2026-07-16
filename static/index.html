@@ -411,8 +411,8 @@
                     document.getElementById('xy-panel').style.display = 'none';
                     return;
                 }
-                const sampleIdx = headers.findIndex(h => h.includes('sample'));
-                const cycleIdx = col('cycle');
+                const sampleIdx = headers.findIndex(h => h.toLowerCase().includes('sample'));
+                const cycleIdx = headers.findIndex(h => h.trim().toLowerCase() === 'cycle');
 
                 let intervalMs = 2;
                 const match = headers[sampleIdx].match(/\((\d+)ms\)/);
