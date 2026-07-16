@@ -455,9 +455,9 @@
 
             // Torque limits in volts (at 2.3 A/V amp gain)
             // Continuous: 7.7A / 2.3 = 3.35V
-            // Peak safe: 10A / 2.3 = 4.35V
+            // Peak @ 10% duty: 23A / 2.3 = 10V (amplifier full scale)
             const contLimit = 3.35;
-            const peakLimit = 4.35;
+            const peakLimit = 10.0;
 
             // Snapshot boundary lines
             const shapes = (plotData.snapBoundaries || []).slice(1).map(b => ({
@@ -514,8 +514,8 @@
             const xAnnotations = [...annotations];
             if (xHasTorque) {
                 xAnnotations.push(
-                    {x:0, xref:'paper', y:contLimit, text:` Cont ±${contLimit}V (7.7A)`, showarrow:false, font:{size:9, color:'#f59e0b'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'},
-                    {x:0, xref:'paper', y:peakLimit, text:` Peak ±${peakLimit}V (10A)`, showarrow:false, font:{size:9, color:'#dc2626'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'}
+                    {x:0, xref:'paper', y:contLimit, text:` Cont ±${contLimit}V (7.7A cont)`, showarrow:false, font:{size:9, color:'#f59e0b'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'},
+                    {x:0, xref:'paper', y:peakLimit, text:` Peak ±${peakLimit}V (23A @ 10% duty)`, showarrow:false, font:{size:9, color:'#dc2626'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'}
                 );
             }
 
@@ -554,8 +554,8 @@
             const yAnnotations = [...annotations];
             if (yHasTorque) {
                 yAnnotations.push(
-                    {x:0, xref:'paper', y:contLimit, text:` Cont ±${contLimit}V (7.7A)`, showarrow:false, font:{size:9, color:'#f59e0b'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'},
-                    {x:0, xref:'paper', y:peakLimit, text:` Peak ±${peakLimit}V (10A)`, showarrow:false, font:{size:9, color:'#dc2626'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'}
+                    {x:0, xref:'paper', y:contLimit, text:` Cont ±${contLimit}V (7.7A cont)`, showarrow:false, font:{size:9, color:'#f59e0b'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'},
+                    {x:0, xref:'paper', y:peakLimit, text:` Peak ±${peakLimit}V (23A @ 10% duty)`, showarrow:false, font:{size:9, color:'#dc2626'}, xanchor:'left', yshift:10, bgcolor:'rgba(255,255,255,0.8)'}
                 );
             }
 
