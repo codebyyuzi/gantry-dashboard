@@ -248,7 +248,12 @@
         function updateDetail(d) {
             if (!d) return;
             const stateEl = document.getElementById('state');
-            const state = d.state || 'offline';
+            let state = d.state || 'offline';
+            // Apply staleness check (same as overview cards)
+            if (d.last_update && state !== 'disconnected' && state !== 'offline') {
+                const ageMs = Date.now() - new Date(d.last_update).getTime();
+                if (ageMs > 120000) state = 'unresponsive';
+            }
             stateEl.textContent = state.toUpperCase();
             stateEl.className = 'value status-' + state;
             document.getElementById('cycle').textContent = d.current_cycle ?? '—';
