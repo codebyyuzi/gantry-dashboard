@@ -191,15 +191,15 @@
             } catch(e) {}
         }
 
+        const ALL_GANTRIES = ["Gantry A", "Gantry B", "Gantry C", "Gantry D", "Gantry E", "Gantry F"];
+
         function renderOverview() {
             const container = document.getElementById('gantry-overview');
-            const gantries = Object.keys(allStatus);
-            if (gantries.length === 0) {
-                container.innerHTML = '<div style="color:#999">No gantries connected yet.</div>';
-                return;
-            }
+            // Always show all 6 gantries; merge in any extra names that reported
+            const gantries = [...ALL_GANTRIES];
+            Object.keys(allStatus).forEach(n => { if (!gantries.includes(n)) gantries.push(n); });
             container.innerHTML = gantries.map(name => {
-                const s = allStatus[name];
+                const s = allStatus[name] || {state: 'offline'};
                 let state = s.state || 'offline';
                 // Check if last_update is stale (>2 minutes)
                 if (s.last_update && state !== 'disconnected' && state !== 'offline') {
