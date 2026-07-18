@@ -200,7 +200,7 @@
                 const resp = await fetch('/api/status/all');
                 allStatus = await resp.json();
                 renderOverview();
-                if (selectedGantry && allStatus[selectedGantry]) updateDetail(allStatus[selectedGantry]);
+                if (selectedGantry) updateDetail(allStatus[selectedGantry]);
             } catch(e) {}
         }
 
@@ -259,7 +259,10 @@
         }
 
         function updateDetail(d) {
-            if (!d) return;
+            // A gantry with no status entry (never connected) has no data — treat
+            // it as offline with empty fields, rather than returning early and
+            // leaving the previously-selected gantry's values on screen.
+            if (!d) d = {state: 'offline'};
             const stateEl = document.getElementById('state');
             let state = d.state || 'offline';
             // Apply staleness check (same as overview cards)
@@ -276,7 +279,8 @@
             document.getElementById('cycle-time').textContent =
                 d.cycle_time ? d.cycle_time.toFixed(3) + 's' : '—';
             document.getElementById('profile').textContent = d.profile || '—';
-            if (d.last_update) document.getElementById('last-update').textContent = 'Last update: ' + d.last_update;
+            document.getElementById('last-update').textContent =
+                d.last_update ? 'Last update: ' + d.last_update : '';
             const errBanner = document.getElementById('error-banner');
             if (d.state === 'error' && d.error) { errBanner.textContent = d.error; errBanner.style.display = 'block'; }
             else { errBanner.style.display = 'none'; }
