@@ -1,0 +1,9 @@
+# Runtime data written by the server (gantry status, motor CSVs, requests).
+# Never commit — it's server state, and on Render it lives on the service disk.
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

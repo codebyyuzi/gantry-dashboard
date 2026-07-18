@@ -25,14 +25,90 @@ Endpoints:
 import json
 import os
 from datetime import datetime
+from functools import wraps
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import (
+    Flask, request, jsonify, send_from_directory,
+    session, redirect, url_for, render_template_string,
+)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 app = Flask(__name__, static_folder=STATIC_DIR)
+
+# Session cookie signing key — MUST be set in the Render environment.
+# Falls back to a random per-process key locally (logs everyone out on restart).
+app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32)
+
+# Browser login password. If unset, viewing is left OPEN (no login) so a
+# missing env var never locks you out of your own dashboard — but a warning is
+# logged. Set DASHBOARD_PASSWORD in Render to require login.
+DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+if not DASHBOARD_PASSWORD:
+    print("WARNING: DASHBOARD_PASSWORD not set — dashboard viewing is OPEN.")
+
+
+def require_login(view):
+    """Protect browser/view routes. Ingest routes (gantry PCs) are left open."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not DASHBOARD_PASSWORD or session.get("authed"):
+            return view(*args, **kwargs)
+        # HTML request -> redirect to login; API/XHR -> 401 JSON so the page JS
+        # can react (e.g. redirect) instead of rendering the login page as data.
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Not authenticated"}), 401
+        return redirect(url_for("login", next=request.path))
+    return wrapped
+
+
+_LOGIN_PAGE = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Gantry Dashboard — Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+ body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;
+   display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+ form{background:#1e293b;padding:32px;border-radius:12px;box-shadow:0 8px 24px #0006;
+   display:flex;flex-direction:column;gap:14px;min-width:280px}
+ h1{font-size:18px;margin:0 0 6px}
+ input{padding:10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:15px}
+ button{padding:10px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:15px;cursor:pointer}
+ button:hover{background:#1d4ed8}
+ .err{color:#f87171;font-size:13px;margin:0}
+</style></head><body>
+<form method="post">
+ <h1>Gantry Dashboard</h1>
+ {% if error %}<p class="err">{{ error }}</p>{% endif %}
+ <input type="password" name="password" placeholder="Password" autofocus required>
+ <input type="hidden" name="next" value="{{ next_url }}">
+ <button type="submit">Log in</button>
+</form></body></html>"""
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not DASHBOARD_PASSWORD:
+        return redirect(url_for("dashboard"))
+    error = None
+    if request.method == "POST":
+        if request.form.get("password") == DASHBOARD_PASSWORD:
+            session["authed"] = True
+            dest = request.form.get("next") or url_for("dashboard")
+            # Only allow same-site relative redirects.
+            if not dest.startswith("/"):
+                dest = url_for("dashboard")
+            return redirect(dest)
+        error = "Incorrect password."
+    next_url = request.args.get("next", "")
+    return render_template_string(_LOGIN_PAGE, error=error, next_url=next_url)
+
+
+@app.route("/logout", methods=["GET"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 def _safe_name(gantry: str) -> str:
@@ -109,6 +185,7 @@ def upload_motor_data():
 # --- Pull request endpoints ---
 
 @app.route("/api/request_upload", methods=["POST"])
+@require_login
 def request_upload():
     data = request.get_json() or {}
     gantry = data.get("gantry")
@@ -155,6 +232,7 @@ def clear_request():
 # --- Read endpoints (called by browser) ---
 
 @app.route("/api/gantries", methods=["GET"])
+@require_login
 def list_gantries():
     gantries = []
     status_dir = _status_dir()
@@ -167,6 +245,7 @@ def list_gantries():
 
 
 @app.route("/api/status", methods=["GET"])
+@require_login
 def get_status_api():
     gantry = request.args.get("gantry")
     if not gantry:
@@ -179,6 +258,7 @@ def get_status_api():
 
 
 @app.route("/api/status/all", methods=["GET"])
+@require_login
 def get_all_status():
     statuses = {}
     status_dir = _status_dir()
@@ -191,6 +271,7 @@ def get_all_status():
 
 
 @app.route("/api/files", methods=["GET"])
+@require_login
 def list_files():
     gantry = request.args.get("gantry")
     if not gantry:
@@ -205,6 +286,7 @@ def list_files():
 
 
 @app.route("/api/files/<gantry>/<filename>", methods=["GET"])
+@require_login
 def download_file(gantry, filename):
     dest_dir = _motor_data_dir(gantry)
     return send_from_directory(dest_dir, filename, as_attachment=True)
@@ -213,6 +295,7 @@ def download_file(gantry, filename):
 # --- Web dashboard ---
 
 @app.route("/", methods=["GET"])
+@require_login
 def dashboard():
     return send_from_directory(STATIC_DIR, "index.html")
 
