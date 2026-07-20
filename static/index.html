@@ -343,12 +343,13 @@
             btns.forEach(b => b.disabled = true);
             msg.textContent = `Requesting ${type.replace(/_/g, ' ')}...`;
             try {
-                // Snapshot file state before request
+                // Snapshot file state before request. Track each file's
+                // size+mtime so we can detect an OVERWRITE (same name/count),
+                // not just brand-new files — motor_data reuses the same filename.
                 const beforeResp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
                 const beforeFiles = await beforeResp.json();
-                const beforeNames = new Set(beforeFiles.map(f => f.name));
+                const beforeSig = new Map(beforeFiles.map(f => [f.name, `${f.size_kb}|${f.mtime}`]));
                 const beforeCount = beforeFiles.length;
-                const beforeTop = beforeFiles.length > 0 ? beforeFiles[0].name : '';
 
                 await fetch('/api/request_upload', {
                     method: 'POST',
@@ -357,17 +358,23 @@
                 });
                 msg.textContent = 'Requested. Waiting for gantry PC...';
 
-                // Poll for completion (check every 5s for up to 40s)
+                // Poll for completion (check every 5s for up to 90s — large files
+                // over a slow link can take a while).
                 let attempts = 0;
+                const MAX_ATTEMPTS = 18;
                 if (activeCheckInterval) clearInterval(activeCheckInterval);
                 const checkInterval = setInterval(async () => {
                     attempts++;
                     try {
                         const checkResp = await fetch('/api/files?gantry=' + encodeURIComponent(selectedGantry));
                         const checkFiles = await checkResp.json();
+                        // Success if: a new file appeared, OR any existing file's
+                        // size/mtime changed (an overwrite).
                         const hasNewFile = checkFiles.length > beforeCount ||
-                            checkFiles.some(f => !beforeNames.has(f.name)) ||
-                            (checkFiles.length > 0 && checkFiles[0].name !== beforeTop);
+                            checkFiles.some(f => {
+                                const sig = beforeSig.get(f.name);
+                                return sig === undefined || sig !== `${f.size_kb}|${f.mtime}`;
+                            });
                         if (hasNewFile) {
                             clearInterval(checkInterval); activeCheckInterval = null;
                             btns.forEach(b => b.disabled = false);
@@ -375,15 +382,15 @@
                             msg.style.color = '#16a34a';
                             fetchFiles();
                             setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 5000);
-                        } else if (attempts >= 8) {
+                        } else if (attempts >= MAX_ATTEMPTS) {
                             clearInterval(checkInterval); activeCheckInterval = null;
                             btns.forEach(b => b.disabled = false);
-                            msg.textContent = '✗ No response from gantry PC.';
-                            msg.style.color = '#dc2626';
+                            msg.textContent = '⏱ Still waiting — file may still be uploading. Check the file list shortly.';
+                            msg.style.color = '#d97706';
                             setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 8000);
                         }
                     } catch(e) {
-                        if (attempts >= 8) {
+                        if (attempts >= MAX_ATTEMPTS) {
                             clearInterval(checkInterval); activeCheckInterval = null;
                             btns.forEach(b => b.disabled = false);
                             msg.textContent = '✗ Check failed.';

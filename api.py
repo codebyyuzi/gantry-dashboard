@@ -280,8 +280,15 @@ def list_files():
     files = []
     if os.path.exists(dest_dir):
         for f in sorted(os.listdir(dest_dir), reverse=True):
-            size_kb = os.path.getsize(os.path.join(dest_dir, f)) / 1024
-            files.append({"name": f, "size_kb": round(size_kb, 1)})
+            fpath = os.path.join(dest_dir, f)
+            size_kb = os.path.getsize(fpath) / 1024
+            # mtime lets the client detect a file being overwritten/refreshed
+            # (same name + count) — not just brand-new files.
+            files.append({
+                "name": f,
+                "size_kb": round(size_kb, 1),
+                "mtime": os.path.getmtime(fpath),
+            })
     return jsonify(files)
 
 
