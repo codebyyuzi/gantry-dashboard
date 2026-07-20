@@ -177,9 +177,22 @@ def upload_motor_data():
         return jsonify({"error": "Empty filename"}), 400
     gantry = request.args.get("gantry") or request.form.get("gantry") or "unknown"
     dest_dir = _motor_data_dir(gantry)
-    filepath = os.path.join(dest_dir, file.filename)
-    file.save(filepath)
-    return jsonify({"ok": True, "filename": file.filename, "gantry": gantry})
+
+    # A ".gz" filename means the client gzip-compressed the payload; decompress
+    # and store the plain file (strip the .gz suffix) so downloads/plotting are
+    # unaffected. Large motor-data CSVs are sent compressed to fit the timeout.
+    filename = os.path.basename(file.filename)  # guard against path traversal
+    if filename.endswith(".gz"):
+        import gzip
+        raw = gzip.decompress(file.read())
+        filename = filename[:-3]
+        filepath = os.path.join(dest_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(raw)
+    else:
+        filepath = os.path.join(dest_dir, filename)
+        file.save(filepath)
+    return jsonify({"ok": True, "filename": filename, "gantry": gantry})
 
 
 # --- Pull request endpoints ---
