@@ -159,6 +159,11 @@
 
         <div class="section">
             <h2>All Files</h2>
+            <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                <input type="file" id="import-file" accept=".csv,.txt,.gz">
+                <button class="btn btn-primary" onclick="importLocalFile()">Import to this gantry</button>
+                <span id="import-msg" style="font-size:13px"></span>
+            </div>
             <div class="files" id="file-list"></div>
         </div>
     </div>
@@ -284,6 +289,31 @@
             const errBanner = document.getElementById('error-banner');
             if (d.state === 'error' && d.error) { errBanner.textContent = d.error; errBanner.style.display = 'block'; }
             else { errBanner.style.display = 'none'; }
+        }
+
+        async function importLocalFile() {
+            const msg = document.getElementById('import-msg');
+            if (!selectedGantry) { msg.textContent = 'Select a gantry first.'; msg.style.color = '#dc2626'; return; }
+            const input = document.getElementById('import-file');
+            const file = input.files[0];
+            if (!file) { msg.textContent = 'Choose a file first.'; msg.style.color = '#dc2626'; return; }
+            msg.textContent = 'Uploading ' + file.name + '...'; msg.style.color = '#6b7280';
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('gantry', selectedGantry);
+                const resp = await fetch('/api/upload_local', { method: 'POST', body: form });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const data = await resp.json();
+                msg.textContent = '✓ Imported ' + (data.filename || file.name);
+                msg.style.color = '#16a34a';
+                input.value = '';
+                fetchFiles();
+                setTimeout(() => { msg.textContent = ''; }, 5000);
+            } catch (e) {
+                msg.textContent = '✗ Import failed: ' + e.message;
+                msg.style.color = '#dc2626';
+            }
         }
 
         async function fetchFiles() {
