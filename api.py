@@ -331,6 +331,27 @@ def download_file(gantry, filename):
     return send_from_directory(dest_dir, filename, as_attachment=True)
 
 
+@app.route("/api/files/<gantry>/<filename>", methods=["DELETE"])
+@require_login
+def delete_file(gantry, filename):
+    """Delete one file from a gantry's motor-data dir. Authenticated. The
+    resolved path is verified to stay inside the gantry dir to block traversal
+    (e.g. '../../') from deleting arbitrary files."""
+    dest_dir = os.path.realpath(_motor_data_dir(gantry))
+    # Strip any path components from the name, then resolve and re-check.
+    target = os.path.realpath(os.path.join(dest_dir, os.path.basename(filename)))
+    if os.path.dirname(target) != dest_dir:
+        return jsonify({"error": "Invalid path"}), 400
+    if not os.path.isfile(target):
+        return jsonify({"error": "File not found"}), 404
+    try:
+        os.remove(target)
+        print(f"DELETED file: {gantry}/{os.path.basename(target)}")
+        return jsonify({"ok": True, "deleted": os.path.basename(target), "gantry": gantry})
+    except OSError as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # --- Web dashboard ---
 
 @app.route("/", methods=["GET"])

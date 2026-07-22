@@ -316,6 +316,22 @@
             }
         }
 
+        async function deleteFile(name) {
+            if (!selectedGantry) return;
+            if (!confirm(`Delete "${name}" from ${selectedGantry}?\n\nThis cannot be undone.`)) return;
+            try {
+                const resp = await fetch(`/api/files/${encodeURIComponent(selectedGantry)}/${encodeURIComponent(name)}`,
+                                         { method: 'DELETE' });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || ('HTTP ' + resp.status));
+                }
+                fetchFiles();
+            } catch (e) {
+                alert('Delete failed: ' + e.message);
+            }
+        }
+
         async function fetchFiles() {
             if (!selectedGantry) return;
             try {
@@ -339,7 +355,9 @@
                     if (isLog) {
                         logSelect.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
                     }
-                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span><a href="/api/files/${gantryPath}/${f.name}">Download</a></div>`;
+                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span>`
+                        + `<span><a href="/api/files/${gantryPath}/${f.name}">Download</a>`
+                        + ` <a href="#" onclick="deleteFile('${f.name.replace(/'/g, "\\'")}'); return false;" style="color:#dc2626;margin-left:10px">Delete</a></span></div>`;
                 });
                 if (files.length === 0) list.innerHTML = '<div style="color:#999;padding:8px 0">No files yet.</div>';
             } catch(e) {}
