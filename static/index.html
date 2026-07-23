@@ -349,13 +349,19 @@
                 files.forEach(f => {
                     const isLog = f.name.endsWith('.log') || f.name.endsWith('.txt');
                     const isCsv = f.name.endsWith('.csv');
+                    // mtime (epoch seconds) = when the file was uploaded/last received
+                    const uploaded = f.mtime
+                        ? new Date(f.mtime * 1000).toLocaleString([], {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
+                        : '';
                     if (isCsv) {
                         csvSelect.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
                     }
                     if (isLog) {
                         logSelect.innerHTML += `<option value="${f.name}">${f.name} (${f.size_kb} KB)</option>`;
                     }
-                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)</span>`
+                    list.innerHTML += `<div class="file-row"><span>${f.name} (${f.size_kb} KB)`
+                        + (uploaded ? ` <span style="color:#6b7280;font-size:12px">— uploaded ${uploaded}</span>` : '')
+                        + `</span>`
                         + `<span><a href="/api/files/${gantryPath}/${f.name}">Download</a>`
                         + ` <a href="#" onclick="deleteFile('${f.name.replace(/'/g, "\\'")}'); return false;" style="color:#dc2626;margin-left:10px">Delete</a></span></div>`;
                 });
