@@ -19,6 +19,7 @@
         .status-connected { color: #0891b2; }
         .status-disconnected { color: #6b7280; }
         .status-unresponsive { color: #991b1b; }
+        .status-stalled { color: #b45309; }
         .status-idle, .status-offline { color: #6b7280; }
         .section { margin-bottom: 24px; }
         .section h2 { font-size: 16px; margin: 0 0 12px 0; }
@@ -211,6 +212,18 @@
 
         const ALL_GANTRIES = ["Gantry A", "Gantry B", "Gantry C", "Gantry D", "Gantry E", "Gantry F"];
 
+        // The server computes the effective state ('unresponsive' when no
+        // contact for 2 min, 'stalled' when "running" but the cycle count has
+        // stopped advancing) from its own clock — no browser clock/timezone math.
+        function effectiveState(s) { return (s && s.state) || 'offline'; }
+
+        function fmtAge(sec) {
+            if (sec == null) return '';
+            if (sec < 90) return Math.round(sec) + 's ago';
+            if (sec < 5400) return Math.round(sec / 60) + ' min ago';
+            return (sec / 3600).toFixed(1) + ' h ago';
+        }
+
         function renderOverview() {
             const container = document.getElementById('gantry-overview');
             // Always show all 6 gantries; merge in any extra names that reported
@@ -218,18 +231,14 @@
             Object.keys(allStatus).forEach(n => { if (!gantries.includes(n)) gantries.push(n); });
             container.innerHTML = gantries.map(name => {
                 const s = allStatus[name] || {state: 'offline'};
-                let state = s.state || 'offline';
-                // Check if last_update is stale (>2 minutes)
-                if (s.last_update && state !== 'disconnected' && state !== 'offline') {
-                    const lastUpdate = new Date(s.last_update);
-                    const ageMs = Date.now() - lastUpdate.getTime();
-                    if (ageMs > 120000) state = 'unresponsive';
-                }
-                const color = {running:'#16a34a', error:'#dc2626', completed:'#2563eb', paused:'#d97706', connected:'#0891b2', disconnected:'#6b7280', unresponsive:'#991b1b'}[state] || '#6b7280';
+                const state = effectiveState(s);
+                const color = {running:'#16a34a', error:'#dc2626', completed:'#2563eb', paused:'#d97706', connected:'#0891b2', disconnected:'#6b7280', unresponsive:'#991b1b', stalled:'#b45309'}[state] || '#6b7280';
                 const active = selectedGantry === name ? 'active' : '';
                 const detail = state === 'running'
                     ? `Cycle ${s.current_cycle || 0} / ${s.target_cycles || '?'}`
-                    : state === 'unresponsive' ? 'Last seen: ' + s.last_update
+                    : state === 'unresponsive' ? 'Last seen ' + fmtAge(s.age_s)
+                    : state === 'stalled' ? `No progress ${fmtAge(s.since_progress_s).replace(' ago','')} @ cycle ${s.current_cycle || 0}`
+                    : state === 'error' ? `Stopped @ cycle ${s.current_cycle ?? '?'}`
                     : (s.profile || '');
                 return `<div class="overview-card ${active}" onclick="selectGantry('${name}')">
                     <div class="name">${s.gantry || name}</div>
@@ -269,12 +278,7 @@
             // leaving the previously-selected gantry's values on screen.
             if (!d) d = {state: 'offline'};
             const stateEl = document.getElementById('state');
-            let state = d.state || 'offline';
-            // Apply staleness check (same as overview cards)
-            if (d.last_update && state !== 'disconnected' && state !== 'offline') {
-                const ageMs = Date.now() - new Date(d.last_update).getTime();
-                if (ageMs > 120000) state = 'unresponsive';
-            }
+            const state = effectiveState(d);
             stateEl.textContent = state.toUpperCase();
             stateEl.className = 'value status-' + state;
             document.getElementById('cycle').textContent = d.current_cycle ?? '—';
@@ -285,9 +289,15 @@
                 d.cycle_time ? d.cycle_time.toFixed(3) + 's' : '—';
             document.getElementById('profile').textContent = d.profile || '—';
             document.getElementById('last-update').textContent =
-                d.last_update ? 'Last update: ' + d.last_update : '';
+                d.last_update ? 'Last update: ' + new Date(d.last_update).toLocaleString()
+                    + (d.age_s != null ? ' (' + fmtAge(d.age_s) + ')' : '') : '';
             const errBanner = document.getElementById('error-banner');
-            if (d.state === 'error' && d.error) { errBanner.textContent = d.error; errBanner.style.display = 'block'; }
+            let banner = '';
+            if (state === 'error') banner = 'Test stopped — ' + (d.error || 'error reported by gantry PC');
+            else if (state === 'stalled') banner = `Reported RUNNING but cycle count has not advanced for ${fmtAge(d.since_progress_s).replace(' ago','')} — gantry may have faulted.`;
+            else if (state === 'unresponsive') banner = `Gantry PC not responding — last contact ${fmtAge(d.age_s)} (last reported: ${(d.reported_state || '?').toUpperCase()}).`;
+            if (d.estop && state !== 'disconnected' && state !== 'offline') banner = (banner ? banner + ' ' : '') + 'E-STOP is latched.';
+            if (banner) { errBanner.textContent = banner; errBanner.style.display = 'block'; }
             else { errBanner.style.display = 'none'; }
         }
 

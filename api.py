@@ -24,7 +24,7 @@ Endpoints:
 """
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 
 from flask import (
@@ -42,19 +42,22 @@ app = Flask(__name__, static_folder=STATIC_DIR)
 # Falls back to a random per-process key locally (logs everyone out on restart).
 app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32)
 
-# Browser login password. If unset, viewing is left OPEN (no login) so a
-# missing env var never locks you out of your own dashboard — but a warning is
-# logged. Set DASHBOARD_PASSWORD in Render to require login.
+# Browser login password (set DASHBOARD_PASSWORD in Render). Fails CLOSED: if
+# unset, every view/API route is refused rather than left open to the internet.
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
 if not DASHBOARD_PASSWORD:
-    print("WARNING: DASHBOARD_PASSWORD not set — dashboard viewing is OPEN.")
+    print("ERROR: DASHBOARD_PASSWORD not set — dashboard views are DISABLED "
+          "until it is configured.")
 
 
 def require_login(view):
     """Protect browser/view routes. Ingest routes (gantry PCs) are left open."""
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not DASHBOARD_PASSWORD or session.get("authed"):
+        if not DASHBOARD_PASSWORD:
+            return jsonify({"error": "Dashboard login not configured "
+                                     "(DASHBOARD_PASSWORD unset)"}), 503
+        if session.get("authed"):
             return view(*args, **kwargs)
         # HTML request -> redirect to login; API/XHR -> 401 JSON so the page JS
         # can react (e.g. redirect) instead of rendering the login page as data.
@@ -90,7 +93,8 @@ _LOGIN_PAGE = """<!doctype html>
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if not DASHBOARD_PASSWORD:
-        return redirect(url_for("dashboard"))
+        return jsonify({"error": "Dashboard login not configured "
+                                 "(DASHBOARD_PASSWORD unset)"}), 503
     error = None
     if request.method == "POST":
         if request.form.get("password") == DASHBOARD_PASSWORD:
@@ -128,6 +132,78 @@ def _motor_data_dir(gantry: str):
     return d
 
 
+def _now_iso() -> str:
+    """UTC timestamp with offset, so browsers in any timezone parse it right
+    (a naive server-local time made 'unresponsive' detection never fire)."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_ts(ts):
+    """Parse a stored timestamp; naive (legacy) values are treated as UTC."""
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+# A gantry that hasn't been heard from (status push or heartbeat) in this long
+# is shown UNRESPONSIVE. Heartbeats are every ~30 s.
+UNRESPONSIVE_AFTER_S = 120
+# A "running" gantry whose cycle count hasn't advanced in
+# max(STALL_MIN_S, STALL_CYCLE_FACTOR * cycle_time) is shown STALLED — the app
+# is alive (heartbeating) but the test isn't making progress.
+STALL_MIN_S = 180
+STALL_CYCLE_FACTOR = 10
+
+# Fields a live heartbeat may update (anything else in the stored status, e.g.
+# an earlier error message, is kept unless the new state clears it).
+_LIVE_FIELDS = ("state", "current_cycle", "target_cycles", "progress_percent",
+                "cycle_time", "profile", "error", "estop")
+
+
+def _with_progress(existing: dict, new: dict, now: str) -> dict:
+    """Carry/refresh last_progress: the time the cycle count last changed (or
+    the state changed). Used for stall detection."""
+    changed = (new.get("state") != existing.get("state")
+               or new.get("current_cycle") != existing.get("current_cycle"))
+    new["last_progress"] = now if changed or not existing.get("last_progress") \
+        else existing["last_progress"]
+    return new
+
+
+def _annotate(status: dict) -> dict:
+    """Add server-computed health fields for the browser:
+    age_s (since last contact), reported_state, and an effective `state`
+    that is 'unresponsive' / 'stalled' when appropriate."""
+    s = dict(status)
+    now = datetime.now(timezone.utc)
+    reported = s.get("state", "offline")
+    s["reported_state"] = reported
+    last = _parse_ts(s.get("last_update"))
+    if last is not None:
+        s["age_s"] = round((now - last).total_seconds(), 1)
+    if reported in ("disconnected", "offline"):
+        return s
+    if last is not None and s["age_s"] > UNRESPONSIVE_AFTER_S:
+        s["state"] = "unresponsive"
+        return s
+    if reported == "running":
+        prog = _parse_ts(s.get("last_progress"))
+        cycle_time = s.get("cycle_time") or 0
+        limit = max(STALL_MIN_S, STALL_CYCLE_FACTOR * float(cycle_time))
+        if prog is not None:
+            since = (now - prog).total_seconds()
+            s["since_progress_s"] = round(since, 1)
+            if since > limit:
+                s["state"] = "stalled"
+    return s
+
+
 def _request_dir():
     d = os.path.join(DATA_DIR, "requests")
     os.makedirs(d, exist_ok=True)
@@ -151,18 +227,37 @@ def update_status():
         return jsonify({"error": "Missing 'gantry' field"}), 400
 
     filepath = os.path.join(_status_dir(), f"{_safe_name(gantry)}.json")
-
-    # Heartbeat: only update timestamp, preserve existing state
-    if data.get("heartbeat"):
-        if os.path.exists(filepath):
+    now = _now_iso()
+    existing = {}
+    if os.path.exists(filepath):
+        try:
             with open(filepath) as f:
                 existing = json.load(f)
-            existing["last_update"] = datetime.now().isoformat()
-            with open(filepath, "w") as f:
-                json.dump(existing, f)
-        return jsonify({"ok": True})
+        except (OSError, json.JSONDecodeError):
+            existing = {}
 
-    data["last_update"] = datetime.now().isoformat()
+    if data.get("heartbeat"):
+        if "state" not in data:
+            # Legacy heartbeat (older app): only refresh the timestamp.
+            if existing:
+                existing["last_update"] = now
+                with open(filepath, "w") as f:
+                    json.dump(existing, f)
+            return jsonify({"ok": True})
+        # Live heartbeat: the app's CURRENT state wins, so a lost status push
+        # (e.g. the 'error' after a fault) is corrected within one heartbeat.
+        merged = dict(existing)
+        for k in _LIVE_FIELDS:
+            if k in data:
+                merged[k] = data[k]
+        if data.get("state") != "error":
+            merged.pop("error", None)
+        merged["gantry"] = gantry
+        data = merged
+
+    data.pop("heartbeat", None)
+    data = _with_progress(existing, data, now)
+    data["last_update"] = now
     with open(filepath, "w") as f:
         json.dump(data, f)
     return jsonify({"ok": True})
@@ -227,7 +322,7 @@ def request_upload():
     if req_type not in ("motor_data", "controller_log", "cycle_log", "profile", "force_snapshot"):
         return jsonify({"error": "Invalid type"}), 400
     req_data = {
-        "requested_at": datetime.now().isoformat(),
+        "requested_at": _now_iso(),
         "type": req_type,
         "gantry": gantry,
     }
@@ -285,7 +380,7 @@ def get_status_api():
     filepath = os.path.join(_status_dir(), f"{_safe_name(gantry)}.json")
     if os.path.exists(filepath):
         with open(filepath) as f:
-            return jsonify(json.load(f))
+            return jsonify(_annotate(json.load(f)))
     return jsonify({"state": "offline", "gantry": gantry})
 
 
@@ -298,7 +393,7 @@ def get_all_status():
         for f in sorted(os.listdir(status_dir)):
             if f.endswith(".json"):
                 with open(os.path.join(status_dir, f)) as fh:
-                    statuses[f.replace(".json", "").replace("_", " ")] = json.load(fh)
+                    statuses[f.replace(".json", "").replace("_", " ")] = _annotate(json.load(fh))
     return jsonify(statuses)
 
 
@@ -361,5 +456,6 @@ def dashboard():
 
 
 if __name__ == "__main__":
+    # Local dev only (Render runs gunicorn via the Procfile). Loopback by default.
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host=os.environ.get("HOST", "127.0.0.1"), port=port)
